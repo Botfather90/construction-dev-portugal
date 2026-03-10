@@ -34,3 +34,4 @@ next-env.d.ts
 
 # cesium copied assets
 public/cesium/
+.env.vercel.check
