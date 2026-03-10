@@ -20,11 +20,17 @@ import {
     X,
     UploadCloud,
     MousePointerClick,
-    Trash2
+    Trash2,
+    Wand2,
+    Info,
+    CheckCircle2,
+    AlertCircle,
+    Loader2
 } from 'lucide-react';
 import axios from 'axios';
 import { PORTUGUESE_CITIES, DEFAULT_LAYERS, CESIUM_ASSETS, formatCoords, LISBON_VIEW } from '@/lib/cesium';
 import { MapLayer } from '@/types';
+import { ConstraintCheckRequest, ConstraintCheckResult } from '@/lib/legislation/types';
 import '@/styles/map.css';
 
 // Dynamic import marker for Cesium - will be loaded client-side
@@ -54,6 +60,15 @@ export default function MapPage() {
     const [isPlacing, setIsPlacing] = useState(false);
     const [placedEntityId, setPlacedEntityId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // AI & Legislation State
+    const [selectedPropertyCoords, setSelectedPropertyCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [constraintsLoading, setConstraintsLoading] = useState(false);
+    const [constraintsResult, setConstraintsResult] = useState<ConstraintCheckResult | null>(null);
+    const [proposedFloors, setProposedFloors] = useState<number>(1);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiResult, setAiResult] = useState<{ imageUrl: string, promptUsed: string } | null>(null);
+    const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
     // Refs for event handlers
     const isPlacingRef = useRef(isPlacing);
@@ -186,20 +201,19 @@ export default function MapPage() {
                     }
                 }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-                // Handle floor plan placement
+                // Handle map clicks (placement or selection)
                 handler.setInputAction((click: any) => {
-                    if (!isPlacingRef.current || !floorPlanImageRef.current) return;
-
                     const ray = viewer.camera.getPickRay(click.position);
                     const position = viewer.scene.globe.pick(ray, viewer.scene);
 
-                    if (position) {
-                        const cartographic = Cesium.Cartographic.fromCartesian(position);
-                        const lon = Cesium.Math.toDegrees(cartographic.longitude);
-                        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+                    if (!position) return;
 
-                        // Create a 3D volume representing the new property (e.g. 20m x 30m x 15m bounding box)
-                        // using the uploaded floor plan as the top texture for visualization
+                    const cartographic = Cesium.Cartographic.fromCartesian(position);
+                    const lon = Cesium.Math.toDegrees(cartographic.longitude);
+                    const lat = Cesium.Math.toDegrees(cartographic.latitude);
+
+                    if (isPlacingRef.current && floorPlanImageRef.current) {
+                        // 1. Blueprint Placement Mode
                         const entity = viewer.entities.add({
                             position: Cesium.Cartesian3.fromDegrees(lon, lat, cartographic.height + 7.5),
                             box: {
@@ -215,6 +229,20 @@ export default function MapPage() {
 
                         setPlacedEntityId(entity.id);
                         setIsPlacing(false);
+                    } else {
+                        // 2. Property Selection Mode for AI Check
+                        setSelectedPropertyCoords({ lat, lng: lon });
+                        // Fly closely to the selected property
+                        viewer.camera.flyTo({
+                            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 150),
+                            orientation: {
+                                heading: viewer.camera.heading,
+                                pitch: Cesium.Math.toRadians(-20),
+                                roll: 0,
+                            },
+                            duration: 1.5,
+                        });
+                        fetchConstraints(lat, lon, proposedFloors);
                     }
                 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -370,6 +398,56 @@ export default function MapPage() {
         setIsPlacing(false);
     };
 
+    const fetchConstraints = async (lat: number, lng: number, floors: number) => {
+        setConstraintsLoading(true);
+        setConstraintsResult(null);
+        setAiResult(null);
+        setAiPanelOpen(true);
+        try {
+            const req: ConstraintCheckRequest = { lat, lng, currentFloors: 1, proposedExtraFloors: floors };
+            const res = await axios.post('/api/check-permits', req);
+            if (res.data.success) {
+                setConstraintsResult(res.data.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch constraints', error);
+        } finally {
+            setConstraintsLoading(false);
+        }
+    };
+
+    // Re-fetch when proposed floors change
+    const updateProposedFloors = (change: number) => {
+        const newVal = Math.max(1, proposedFloors + change);
+        setProposedFloors(newVal);
+        if (selectedPropertyCoords) {
+            fetchConstraints(selectedPropertyCoords.lat, selectedPropertyCoords.lng, newVal);
+        }
+    };
+
+    const handleGenerateAI = async () => {
+        if (!constraintsResult) return;
+        setAiLoading(true);
+        try {
+            const res = await axios.post('/api/generate-design', {
+                municipality: constraintsResult.municipality,
+                zone: constraintsResult.zone,
+                proposedFloorsAdded: proposedFloors,
+                baseArchitecturalStyle: 'modern Portuguese'
+            });
+            if (res.data.success) {
+                setAiResult({
+                    imageUrl: res.data.imageUrl,
+                    promptUsed: res.data.promptUsed
+                });
+            }
+        } catch (error) {
+            console.error('Failed to generate AI design', error);
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
     return (
         <div className="map-page" id="map-page">
             {/* Hidden file input */}
@@ -478,6 +556,94 @@ export default function MapPage() {
                     </div>
                 )}
             </div>
+
+            {/* AI Generation & Constraints Panel */}
+            {aiPanelOpen && (
+                <div className="ai-panel" style={{
+                    position: 'absolute', top: 80, left: 24, width: 380, bottom: 24,
+                    background: 'rgba(11, 16, 30, 0.85)', backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px',
+                    display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 100
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Wand2 size={16} className="text-primary" /> Property Simulation
+                        </h3>
+                        <button onClick={() => setAiPanelOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {constraintsLoading ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '16px', color: '#94a3b8' }}>
+                                <Loader2 size={24} className="spin" />
+                                <span>Analyzing municipal PDM regulations...</span>
+                            </div>
+                        ) : constraintsResult ? (
+                            <>
+                                {/* Constraints Header */}
+                                <div>
+                                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>Location Confirmed</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 600, color: 'white' }}>{constraintsResult.municipality}</div>
+                                    <div style={{ display: 'inline-flex', padding: '4px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '12px', marginTop: '8px' }}>
+                                        Zone: {constraintsResult.zone}
+                                    </div>
+                                </div>
+
+                                {/* Floor Slider */}
+                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '12px', color: '#e2e8f0' }}>Proposed Extra Floors</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <button onClick={() => updateProposedFloors(-1)} className="btn btn-icon btn-ghost" disabled={proposedFloors <= 1}><Minus size={16} /></button>
+                                        <span style={{ flex: 1, textAlign: 'center', fontSize: '24px', fontWeight: 600 }}>+{proposedFloors}</span>
+                                        <button onClick={() => updateProposedFloors(1)} className="btn btn-icon btn-ghost" disabled={!constraintsResult.isLegal}><Plus size={16} /></button>
+                                    </div>
+                                </div>
+
+                                {/* Legality Check */}
+                                <div style={{
+                                    padding: '16px', borderRadius: '12px',
+                                    background: constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    border: `1px solid ${constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: constraintsResult.isLegal ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: '8px' }}>
+                                        {constraintsResult.isLegal ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                                        {constraintsResult.isLegal ? 'Modification Legally Viable' : 'Exceeds Legal Limits'}
+                                    </div>
+
+                                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {constraintsResult.allowedModifications.map((mod, i) => <li key={i}>{mod}</li>)}
+                                        {!constraintsResult.isLegal && constraintsResult.restrictions.map((res, i) => <li key={i} style={{ color: '#f87171' }}>{res}</li>)}
+                                    </ul>
+                                </div>
+
+                                {/* AI Result or Button */}
+                                {aiResult ? (
+                                    <div style={{ marginTop: 'auto' }}>
+                                        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>AI Visualization</div>
+                                        <img src={aiResult.imageUrl} alt="AI Generated visualization" style={{ width: '100%', borderRadius: '8px', objectFit: 'cover', aspectRatio: '16/9' }} />
+                                    </div>
+                                ) : (
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ width: '100%', marginTop: 'auto', padding: '14px' }}
+                                        onClick={handleGenerateAI}
+                                        disabled={!constraintsResult.isLegal || aiLoading}
+                                    >
+                                        {aiLoading ? <Loader2 size={18} className="spin" /> : <><Wand2 size={18} /> Generate AI Preview</>}
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', textAlign: 'center', padding: '20px' }}>
+                                <MousePointerClick size={32} style={{ marginBottom: '16px', opacity: 0.5 }} />
+                                <p>Click anywhere on the map to analyze a property and simulate modifications.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Right Controls */}
             <div className="map-controls">
