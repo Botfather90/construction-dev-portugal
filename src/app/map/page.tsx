@@ -63,9 +63,9 @@ export default function MapPage() {
 
     // AI & Legislation State
     const [selectedPropertyCoords, setSelectedPropertyCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [userPrompt, setUserPrompt] = useState<string>('');
     const [constraintsLoading, setConstraintsLoading] = useState(false);
     const [constraintsResult, setConstraintsResult] = useState<ConstraintCheckResult | null>(null);
-    const [proposedFloors, setProposedFloors] = useState<number>(1);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResult, setAiResult] = useState<{ imageUrl: string, promptUsed: string } | null>(null);
     const [aiPanelOpen, setAiPanelOpen] = useState(false);
@@ -232,17 +232,22 @@ export default function MapPage() {
                     } else {
                         // 2. Property Selection Mode for AI Check
                         setSelectedPropertyCoords({ lat, lng: lon });
-                        // Fly closely to the selected property
+                        // Fly closely to the selected property but not into the floor
                         viewer.camera.flyTo({
-                            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 150),
+                            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 500), // Wider view
                             orientation: {
                                 heading: viewer.camera.heading,
-                                pitch: Cesium.Math.toRadians(-20),
+                                pitch: Cesium.Math.toRadians(-35),
                                 roll: 0,
                             },
                             duration: 1.5,
                         });
-                        fetchConstraints(lat, lon, proposedFloors);
+
+                        // Reset prompt when a new property is clicked
+                        setUserPrompt('');
+                        setConstraintsResult(null);
+                        setAiResult(null);
+                        setAiPanelOpen(true);
                     }
                 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -398,13 +403,18 @@ export default function MapPage() {
         setIsPlacing(false);
     };
 
-    const fetchConstraints = async (lat: number, lng: number, floors: number) => {
+    const fetchConstraints = async () => {
+        if (!selectedPropertyCoords || !userPrompt.trim()) return;
+
         setConstraintsLoading(true);
         setConstraintsResult(null);
         setAiResult(null);
-        setAiPanelOpen(true);
         try {
-            const req: ConstraintCheckRequest = { lat, lng, currentFloors: 1, proposedExtraFloors: floors };
+            const req: ConstraintCheckRequest = {
+                lat: selectedPropertyCoords.lat,
+                lng: selectedPropertyCoords.lng,
+                prompt: userPrompt
+            };
             const res = await axios.post('/api/check-permits', req);
             if (res.data.success) {
                 setConstraintsResult(res.data.data);
@@ -416,24 +426,16 @@ export default function MapPage() {
         }
     };
 
-    // Re-fetch when proposed floors change
-    const updateProposedFloors = (change: number) => {
-        const newVal = Math.max(1, proposedFloors + change);
-        setProposedFloors(newVal);
-        if (selectedPropertyCoords) {
-            fetchConstraints(selectedPropertyCoords.lat, selectedPropertyCoords.lng, newVal);
-        }
-    };
-
     const handleGenerateAI = async () => {
-        if (!constraintsResult) return;
+        if (!constraintsResult || !userPrompt.trim()) return;
         setAiLoading(true);
         try {
             const res = await axios.post('/api/generate-design', {
                 municipality: constraintsResult.municipality,
                 zone: constraintsResult.zone,
-                proposedFloorsAdded: proposedFloors,
-                baseArchitecturalStyle: 'modern Portuguese'
+                prompt: userPrompt,
+                intent: constraintsResult.parsedIntent,
+                allowedModifications: constraintsResult.allowedModifications
             });
             if (res.data.success) {
                 setAiResult({
@@ -591,32 +593,54 @@ export default function MapPage() {
                                     </div>
                                 </div>
 
-                                {/* Floor Slider */}
+                                {/* Freeform Prompt Area */}
                                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '12px', color: '#e2e8f0' }}>Proposed Extra Floors</label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                        <button onClick={() => updateProposedFloors(-1)} className="btn btn-icon btn-ghost" disabled={proposedFloors <= 1}><Minus size={16} /></button>
-                                        <span style={{ flex: 1, textAlign: 'center', fontSize: '24px', fontWeight: 600 }}>+{proposedFloors}</span>
-                                        <button onClick={() => updateProposedFloors(1)} className="btn btn-icon btn-ghost" disabled={!constraintsResult.isLegal}><Plus size={16} /></button>
-                                    </div>
+                                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: '#e2e8f0' }}>Desired Modification</label>
+                                    <textarea
+                                        style={{
+                                            width: '100%',
+                                            background: 'rgba(255,255,255,0.05)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            color: 'white',
+                                            padding: '12px',
+                                            borderRadius: '8px',
+                                            minHeight: '80px',
+                                            fontSize: '14px',
+                                            outline: 'none',
+                                            resize: 'vertical'
+                                        }}
+                                        placeholder="e.g. Build a 2-story house with a wooden annex, or subdivide into two units..."
+                                        value={userPrompt}
+                                        onChange={(e) => setUserPrompt(e.target.value)}
+                                    />
+                                    <button
+                                        onClick={fetchConstraints}
+                                        disabled={!userPrompt.trim() || constraintsLoading}
+                                        className="btn btn-sm btn-secondary"
+                                        style={{ marginTop: '12px', width: '100%', padding: '8px' }}
+                                    >
+                                        Check Permitting Viability
+                                    </button>
                                 </div>
 
                                 {/* Legality Check */}
-                                <div style={{
-                                    padding: '16px', borderRadius: '12px',
-                                    background: constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                    border: `1px solid ${constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: constraintsResult.isLegal ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: '8px' }}>
-                                        {constraintsResult.isLegal ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                                        {constraintsResult.isLegal ? 'Modification Legally Viable' : 'Exceeds Legal Limits'}
-                                    </div>
+                                {constraintsResult && (
+                                    <div style={{
+                                        padding: '16px', borderRadius: '12px',
+                                        background: constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                        border: `1px solid ${constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: constraintsResult.isLegal ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: '8px' }}>
+                                            {constraintsResult.isLegal ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                                            {constraintsResult.isLegal ? 'Modification Legally Viable' : 'Exceeds Legal Limits'}
+                                        </div>
 
-                                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        {constraintsResult.allowedModifications.map((mod, i) => <li key={i}>{mod}</li>)}
-                                        {!constraintsResult.isLegal && constraintsResult.restrictions.map((res, i) => <li key={i} style={{ color: '#f87171' }}>{res}</li>)}
-                                    </ul>
-                                </div>
+                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            {constraintsResult.allowedModifications.map((mod, i) => <li key={i}>{mod}</li>)}
+                                            {!constraintsResult.isLegal && constraintsResult.restrictions.map((res, i) => <li key={i} style={{ color: '#f87171' }}>{res}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
 
                                 {/* AI Result or Button */}
                                 {aiResult ? (

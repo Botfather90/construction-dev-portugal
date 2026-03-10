@@ -1,32 +1,32 @@
-import { ConstraintCheckRequest, ConstraintCheckResult, PDMRules, Municipality, ZoneClassification } from './types';
+import { ConstraintCheckRequest, ConstraintCheckResult, PDMRules, Municipality, ZoneClassification, ParsedUserIntent } from './types';
 import { pdmDatabase, getMunicipalityAndZone } from './mockDB';
 
 /**
- * Core engine to evaluate property constraints based on location and PDM rules.
+ * Core engine to evaluate property constraints based on location and PDM rules + User Intent.
  */
-export function evaluatePropertyConstraints(request: ConstraintCheckRequest): ConstraintCheckResult {
-    const { lat, lng, currentFloors, proposedExtraFloors = 0 } = request;
+export function evaluatePropertyConstraints(
+    request: ConstraintCheckRequest,
+    intent: ParsedUserIntent
+): ConstraintCheckResult {
+    const { lat, lng, currentFloors = 1, lotAreaSqMeters = 500 } = request;
 
-    // 1. Identify Municipality and Zone (Simulated GIS lookup)
+    // 1. Identify Municipality and Zone
     const locationInfo = getMunicipalityAndZone(lat, lng);
 
     if (!locationInfo) {
-        // If outside our mock coverage area, return a generic restrictive response
         return {
             isLegal: false,
             municipality: 'Lisboa', // Default fallback
             zone: 'Urban Consolidated',
+            parsedIntent: intent,
             allowedModifications: [],
             restrictions: ['Property outside mapped area. Please consult local Camara Municipal manually.'],
-            maxAdditionalFloors: 0,
             requiredPermits: ['Full Architectural Project', 'Special Locality Permit'],
             confidenceScore: 0.1
         };
     }
 
     const { municipality, zone } = locationInfo;
-
-    // 2. Fetch specific PDM rules for this zone
     const municipalityRules = pdmDatabase[municipality as string] || [];
     const rules = municipalityRules.find(r => r.zone === zone);
 
@@ -35,54 +35,108 @@ export function evaluatePropertyConstraints(request: ConstraintCheckRequest): Co
             isLegal: false,
             municipality: municipality as Municipality,
             zone: zone as ZoneClassification,
+            parsedIntent: intent,
             allowedModifications: [],
             restrictions: ['No explicit rules found for this zone. Assuming strict no-build.'],
-            maxAdditionalFloors: 0,
             requiredPermits: [],
             confidenceScore: 0.5
         };
     }
 
-    // 3. Evaluate Constraints
-    const totalProposedFloors = currentFloors + proposedExtraFloors;
-    const maxAllowedFloors = rules.maxFloors;
-    const maxAdditionalFloors = Math.max(0, maxAllowedFloors - currentFloors);
-
-    const isTargetLegal = totalProposedFloors <= maxAllowedFloors;
-
+    // 3. Evaluate Constraints based on ACTION
+    let isLegal = true;
     const allowedModifications: string[] = [];
     const restrictions: string[] = [...rules.notes];
-    const requiredPermits: string[] = [];
+    const requiredPermits: string[] = rules.requiresArchitecturalApproval ? ['Licenciamento Camarário (Arch. Approval)'] : ['Comunicação Prévia'];
 
-    if (rules.requiresArchitecturalApproval) {
-        requiredPermits.push('Licenciamento Camarário (Arch. Approval)');
+    switch (intent.action) {
+        case 'add_floors':
+            const proposedTotal = currentFloors + (intent.targetFloors || 1);
+            if (proposedTotal > rules.maxFloors) {
+                isLegal = false;
+                restrictions.push(`Proposed total of ${proposedTotal} floors exceeds the zone limit of ${rules.maxFloors} floors.`);
+            } else {
+                allowedModifications.push(`You can legally build up to ${rules.maxFloors} total floors here.`);
+                allowedModifications.push(`Maximum allowed height is ${rules.maxHeightMeters}m.`);
+            }
+            break;
+
+        case 'subdivide_lot':
+            if (!rules.allowsSubdivision) {
+                isLegal = false;
+                restrictions.push(`Subdivision (Destaque de parcela) is strictly forbidden in ${rules.zone} zones.`);
+            } else {
+                const estNewLotSize = lotAreaSqMeters / (intent.subdivisionUnits || 2);
+                if (rules.minLotSizeSqMetersAfterSubdivision && estNewLotSize < rules.minLotSizeSqMetersAfterSubdivision) {
+                    isLegal = false;
+                    restrictions.push(`Estimated new lot size (${estNewLotSize.toFixed(0)}m²) is smaller than the minimum required ${rules.minLotSizeSqMetersAfterSubdivision}m².`);
+                    restrictions.push(`You need a minimum original lot of ${(rules.minLotSizeSqMetersAfterSubdivision * (intent.subdivisionUnits || 2))}m² to do this.`);
+                } else {
+                    allowedModifications.push(`Subdivision allowed into ${intent.subdivisionUnits || 2} units.`);
+                    requiredPermits.push('Pedido de Destaque Misto');
+                }
+            }
+            break;
+
+        case 'build_annex':
+            if (!rules.allowsAnnexes) {
+                isLegal = false;
+                restrictions.push(`Annexes are not allowed in this specific zone.`);
+            } else {
+                if (intent.annexArea && rules.maxAnnexAreaSqMeters && intent.annexArea > rules.maxAnnexAreaSqMeters) {
+                    isLegal = false;
+                    restrictions.push(`Requested annex area (${intent.annexArea}m²) exceeds the maximum allowed ${rules.maxAnnexAreaSqMeters}m².`);
+                } else {
+                    allowedModifications.push(`Annex construction allowed up to ${rules.maxAnnexAreaSqMeters || 'a reasonable'}m².`);
+                }
+            }
+            break;
+
+        case 'build_wall':
+            if (intent.wallHeight && intent.wallHeight > rules.maxBoundaryWallHeightMeters) {
+                isLegal = false;
+                restrictions.push(`Boundary wall height of ${intent.wallHeight}m exceeds the maximum allowed ${rules.maxBoundaryWallHeightMeters}m.`);
+            } else {
+                allowedModifications.push(`You can build boundary walls up to ${rules.maxBoundaryWallHeightMeters}m high without a full license.`);
+                requiredPermits.pop(); // Walls usually just "Comunicação Prévia"
+                requiredPermits.push('Comunicação Prévia (Walls)');
+            }
+            break;
+
+        case 'change_usage':
+            if (!rules.allowsUsageChange) {
+                isLegal = false;
+                restrictions.push(`Change of usage is not permitted in ${rules.zone} zones.`);
+            } else if (intent.targetUsage && !rules.allowedUses.includes(intent.targetUsage as any)) {
+                isLegal = false;
+                restrictions.push(`The usage type "${intent.targetUsage}" is not allowed. Allowed types: ${rules.allowedUses.join(', ')}.`);
+            } else {
+                allowedModifications.push(`Change of usage to ${intent.targetUsage || 'new type'} is permitted.`);
+                requiredPermits.push('Alvará de Autorização de Utilização');
+            }
+            break;
+
+        default:
+            // For unknown or general exterior modifications
+            isLegal = true; // Assume conditionally legal pending arch review
+            allowedModifications.push('Modifications must respect existing architectural styles.');
+            restrictions.push('Complex custom modifications require specific architectural project approval.');
+            break;
     }
 
-    if (maxAdditionalFloors > 0) {
-        allowedModifications.push(`You can legally add up to ${maxAdditionalFloors} floor(s).`);
-        allowedModifications.push(`Maximum allowed height for the building is ${rules.maxHeightMeters} meters.`);
-    }
-
-    if (!isTargetLegal && proposedExtraFloors > 0) {
-        restrictions.push(`Proposed addition of ${proposedExtraFloors} floor(s) exceeds the zone limit of ${maxAllowedFloors} total floors.`);
-    }
-
+    // General constraints that apply to everything
     if (rules.maxImplantationPercentage) {
         restrictions.push(`Building footprint cannot exceed ${rules.maxImplantationPercentage}% of the lot area.`);
     }
 
-    if (rules.allowsUsageChange) {
-        allowedModifications.push('Change of use (e.g., commercial to residential) is permitted under specific conditions.');
-    }
-
     return {
-        isLegal: isTargetLegal,
+        isLegal,
         municipality: municipality as Municipality,
         zone: zone as ZoneClassification,
+        parsedIntent: intent,
         allowedModifications,
         restrictions,
-        maxAdditionalFloors,
         requiredPermits,
-        confidenceScore: 0.85 // High confidence since it's a direct mock hit, but not 1.0 to account for real-world nuances
+        confidenceScore: 0.85
     };
 }

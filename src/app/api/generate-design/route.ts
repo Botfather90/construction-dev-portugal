@@ -1,50 +1,50 @@
 import { NextResponse } from 'next/server';
-import { buildArchitecturalPrompt } from '@/lib/ai/prompts';
-import { Municipality, ZoneClassification } from '@/lib/legislation/types';
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { municipality, zone, proposedFloorsAdded, baseArchitecturalStyle } = body;
+        const { municipality, zone, prompt, intent, allowedModifications } = body;
 
-        if (!municipality || !zone || proposedFloorsAdded === undefined) {
+        if (!municipality || !zone || !prompt) {
             return NextResponse.json(
-                { error: 'Missing required parameters for AI generation.' },
+                { success: false, error: 'Missing required parameters' },
                 { status: 400 }
             );
         }
 
-        // 1. Generate the highly specific prompt
-        const prompt = buildArchitecturalPrompt({
-            municipality: municipality as Municipality,
-            zone: zone as ZoneClassification,
-            proposedFloorsAdded: Number(proposedFloorsAdded),
-            baseArchitecturalStyle
-        });
+        // Combine the user's core intent with the legal constraints
+        const strictPrompt = `
+USER REQUEST: "${prompt}"
+LEGAL CONSTRAINTS TO ENFORCE in ${zone}, ${municipality}:
+${allowedModifications?.join('\n') || 'Must conform to local style.'}
 
-        console.log('Generated AI Prompt:', prompt);
+ARCHITECTURAL STYLE: Modern Portuguese, highly realistic.
+        `;
 
-        // 2. Call AI Image Generation API 
-        // TODO: Integrate actual provider (e.g., OpenAI DALL-E 3, Midjourney, Gemini)
-        // For now, we simulate a successful generation with a placeholder image 
-        // to unblock the frontend UI development.
+        // Here we would call the Gemini "Nano Banana" image generation API.
+        // For the MVP frontend, we return a high-quality placeholder that matches the theme
+        // until billing is enabled for the image model.
+
+        let mockImageUrl = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9'; // Default Vivenda
+        if (intent?.action === 'subdivide_lot') {
+            mockImageUrl = 'https://images.unsplash.com/photo-1628624747186-a941c476b7ef'; // Two modern houses
+        } else if (intent?.action === 'add_floors') {
+            mockImageUrl = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00'; // Apartment building
+        }
 
         // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Simulated response
-        const mockImageUrl = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'; // Placeholder of a nice house
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         return NextResponse.json({
             success: true,
-            promptUsed: prompt,
-            imageUrl: mockImageUrl
+            imageUrl: mockImageUrl,
+            promptUsed: strictPrompt
         });
 
     } catch (error: any) {
-        console.error('Error generating design:', error);
+        console.error('Error in design generation:', error);
         return NextResponse.json(
-            { error: 'Failed to generate architectural design.' },
+            { success: false, error: error.message || 'Internal server error' },
             { status: 500 }
         );
     }

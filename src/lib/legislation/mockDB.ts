@@ -6,10 +6,17 @@ export const pdmDatabase: Record<string, PDMRules[]> = {
         {
             municipality: 'Cascais',
             zone: 'Urban Consolidated',
-            maxFloors: 3, // Typically allows ground floor + 2
+            maxFloors: 3,
             maxHeightMeters: 10.5,
             maxImplantationPercentage: 40,
+            maxConstructionIndex: 0.8,
+            allowsSubdivision: true,
+            minLotSizeSqMetersAfterSubdivision: 300,
             allowsUsageChange: true,
+            allowedUses: ['Residential', 'Commercial', 'Services'],
+            allowsAnnexes: true,
+            maxAnnexAreaSqMeters: 30,
+            maxBoundaryWallHeightMeters: 1.8,
             requiresArchitecturalApproval: true,
             notes: ['Must maintain existing architectural style of the street.', 'Setback from street must be at least 3 meters.']
         },
@@ -18,7 +25,13 @@ export const pdmDatabase: Record<string, PDMRules[]> = {
             zone: 'Historical Center',
             maxFloors: 2,
             maxHeightMeters: 7.5,
+            maxImplantationPercentage: 80,
+            maxConstructionIndex: 1.2,
+            allowsSubdivision: false,
             allowsUsageChange: false,
+            allowedUses: ['Residential', 'Commercial'],
+            allowsAnnexes: false,
+            maxBoundaryWallHeightMeters: 2.0,
             requiresArchitecturalApproval: true,
             notes: ['Strict preservation rules apply.', 'No new exterior windows allowed without special heritage permit.', 'Roof tiles must match original color.']
         },
@@ -28,7 +41,13 @@ export const pdmDatabase: Record<string, PDMRules[]> = {
             maxFloors: 1,
             maxHeightMeters: 4.5,
             maxImplantationPercentage: 10,
+            maxConstructionIndex: 0.1,
+            allowsSubdivision: false,
             allowsUsageChange: false,
+            allowedUses: ['Residential', 'Rural/Agricultural'],
+            allowsAnnexes: true,
+            maxAnnexAreaSqMeters: 15, // Only small wooden tool sheds
+            maxBoundaryWallHeightMeters: 1.2,
             requiresArchitecturalApproval: true,
             notes: ['Construction only allowed if replacing existing ruin.', 'Strict environmental impact study required.']
         }
@@ -37,10 +56,17 @@ export const pdmDatabase: Record<string, PDMRules[]> = {
         {
             municipality: 'Oeiras',
             zone: 'Urban Consolidated',
-            maxFloors: 4, // Slightly denser than Cascais in some areas
+            maxFloors: 4,
             maxHeightMeters: 13.5,
             maxImplantationPercentage: 50,
+            maxConstructionIndex: 1.0,
+            allowsSubdivision: true,
+            minLotSizeSqMetersAfterSubdivision: 250,
             allowsUsageChange: true,
+            allowedUses: ['Residential', 'Commercial', 'Services'],
+            allowsAnnexes: true,
+            maxAnnexAreaSqMeters: 40,
+            maxBoundaryWallHeightMeters: 2.0,
             requiresArchitecturalApproval: true,
             notes: ['Parking provision mandatory for new residential units.']
         },
@@ -50,7 +76,14 @@ export const pdmDatabase: Record<string, PDMRules[]> = {
             maxFloors: 5,
             maxHeightMeters: 16.5,
             maxImplantationPercentage: 60,
+            maxConstructionIndex: 1.5,
+            allowsSubdivision: true,
+            minLotSizeSqMetersAfterSubdivision: 200,
             allowsUsageChange: true,
+            allowedUses: ['Residential', 'Commercial', 'Services', 'Tourism'],
+            allowsAnnexes: true,
+            maxAnnexAreaSqMeters: 50,
+            maxBoundaryWallHeightMeters: 2.0,
             requiresArchitecturalApproval: true,
             notes: ['Subject to detailed urbanization plan approval.']
         }

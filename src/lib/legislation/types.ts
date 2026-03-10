@@ -7,17 +7,51 @@ export type ZoneClassification =
     | 'Rural/Agricultural'
     | 'Protected Natural Area';
 
-// Simplified representation of PDM (Plano Diretor Municipal) rules
+// Expanded representation of PDM (Plano Diretor Municipal) rules
 export interface PDMRules {
     municipality: Municipality;
     zone: ZoneClassification;
+
+    // Volumetry & Density
     maxFloors: number;
     maxHeightMeters: number;
-    maxImplantationPercentage?: number; // % of lot area that can be built on
-    maxConstructionPercentage?: number; // % of lot area for total construction (all floors)
+    maxImplantationPercentage: number; // Max % of lot area covered by building footprint
+    maxConstructionIndex: number; // Max ratio of total construction area / lot area
+
+    // Subdivisions (Destaque de Parcela)
+    allowsSubdivision: boolean;
+    minLotSizeSqMetersAfterSubdivision?: number;
+
+    // Usage
     allowsUsageChange: boolean; // e.g., commercial to residential
-    requiresArchitecturalApproval: boolean;
+    allowedUses: ('Residential' | 'Commercial' | 'Services' | 'Industrial' | 'Tourism' | 'Rural/Agricultural')[];
+
+    // Exterior & Additions
+    allowsAnnexes: boolean;
+    maxAnnexAreaSqMeters?: number;
+    maxBoundaryWallHeightMeters: number;
+    requiresArchitecturalApproval: boolean; // "Licenciamento" vs "Comunicação Prévia"
+
     notes: string[];
+}
+
+export type UserIntentAction =
+    | 'add_floors'
+    | 'subdivide_lot'
+    | 'build_annex'
+    | 'change_usage'
+    | 'build_wall'
+    | 'exterior_modification'
+    | 'unknown';
+
+export interface ParsedUserIntent {
+    action: UserIntentAction;
+    targetFloors?: number;
+    subdivisionUnits?: number;
+    annexArea?: number;
+    targetUsage?: string;
+    wallHeight?: number;
+    description: string;
 }
 
 // Result of checking a property against PDM rules
@@ -25,9 +59,9 @@ export interface ConstraintCheckResult {
     isLegal: boolean;
     municipality: Municipality;
     zone: ZoneClassification;
+    parsedIntent?: ParsedUserIntent;
     allowedModifications: string[];
     restrictions: string[];
-    maxAdditionalFloors: number;
     requiredPermits: string[];
     confidenceScore: number; // 0-1, lower if coords are near zone borders
 }
@@ -36,8 +70,8 @@ export interface ConstraintCheckResult {
 export interface ConstraintCheckRequest {
     lat: number;
     lng: number;
-    currentFloors: number;
-    proposedExtraFloors?: number;
+    prompt: string; // The freeform text input from the user
+    currentFloors?: number;
     lotAreaSqMeters?: number;
     currentImplantationAreaSqMeters?: number;
 }
