@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "mkdir -p public/cesium && cp -r node_modules/cesium/Build/Cesium/* public/cesium/"
   },
   "dependencies": {
     "cesium": "^1.139.1",

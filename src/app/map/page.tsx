@@ -49,11 +49,8 @@ export default function MapPage() {
                 const CesiumModule = await import('cesium');
                 Cesium = CesiumModule;
 
-                // Set base URL for Cesium assets (CDN for workers/assets)
-                const cesiumVersion = (CesiumModule as any).VERSION || '1.125';
-                (window as any).CESIUM_BASE_URL =
-                    process.env.NEXT_PUBLIC_CESIUM_BASE_URL ||
-                    `https://cesium.com/downloads/cesiumjs/releases/${cesiumVersion}/Build/Cesium`;
+                // Set base URL for Cesium assets
+                (window as any).CESIUM_BASE_URL = '/cesium';
 
                 // Set access token
                 Cesium.Ion.defaultAccessToken =
@@ -61,7 +58,7 @@ export default function MapPage() {
 
                 if (!mounted || !containerRef.current) return;
 
-                // Create viewer
+                // Create viewer with a cinematic diorama aesthetic
                 const viewer = new Cesium.Viewer(containerRef.current, {
                     terrain: Cesium.Terrain.fromWorldTerrain(),
                     baseLayerPicker: false,
@@ -75,36 +72,75 @@ export default function MapPage() {
                     fullscreenButton: false,
                     infoBox: false,
                     creditContainer: document.createElement('div'), // hide credits
-                    msaaSamples: 2,
+                    msaaSamples: 4,
+                    skyAtmosphere: false,
+                    skyBox: false,
+                    contextOptions: {
+                        webgl: {
+                            alpha: true,
+                            antialias: true
+                        }
+                    }
                 });
 
                 viewerRef.current = viewer;
 
-                // Enable lighting
+                // Diorama visual setup
+                viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0B101E'); // Match deep navy background
+                viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#111827');
+                viewer.scene.globe.showWaterEffect = true;
+                viewer.scene.highDynamicRange = true;
                 viewer.scene.globe.enableLighting = true;
                 viewer.scene.globe.depthTestAgainstTerrain = true;
 
-                // Add OSM 3D Buildings
+                // Add soft fog for depth perception
+                viewer.scene.fog.enabled = true;
+                viewer.scene.fog.density = 0.0003;
+                viewer.scene.fog.screenSpaceErrorFactor = 2.0;
+
+                // Post-processing: Ambient Occlusion for realistic shadows in crevices
+                if (Cesium.PostProcessStageLibrary.isAmbientOcclusionSupported(viewer.scene)) {
+                    const ambientOcclusion = viewer.scene.postProcessStages.ambientOcclusion;
+                    ambientOcclusion.enabled = true;
+                    ambientOcclusion.uniforms.intensity = 3.0;
+                    ambientOcclusion.uniforms.lengthCap = 0.25;
+                    ambientOcclusion.uniforms.stepSize = 1.5;
+                    ambientOcclusion.uniforms.bias = 0.05;
+                }
+
+                // Silhouette/Edge highlight on buildings
+                const edgeDetection = Cesium.PostProcessStageLibrary.createEdgeDetectionStage();
+                edgeDetection.uniforms.color = Cesium.Color.clone(Cesium.Color.CYAN).withAlpha(0.2);
+                edgeDetection.uniforms.length = 0.1;
+
+                // Add OSM 3D Buildings with styled "architectural model / clay" look
                 try {
                     const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(
                         CESIUM_ASSETS.OSM_BUILDINGS
                     );
+
+                    // Style buildings: neutral gray with slight transparency, white for features
+                    tileset.style = new Cesium.Cesium3DTileStyle({
+                        color: "color('#A1A1AA', 0.9)", // Soft zinc color
+                        show: true
+                    });
+
                     viewer.scene.primitives.add(tileset);
                     buildingsTilesetRef.current = tileset;
                 } catch (e) {
                     console.warn('Could not load OSM buildings:', e);
                 }
 
-                // Fly to Lisbon
+                // Start with a dramatic tilt / isometric angle
                 viewer.camera.flyTo({
                     destination: Cesium.Cartesian3.fromDegrees(
                         LISBON_VIEW.longitude,
                         LISBON_VIEW.latitude,
-                        LISBON_VIEW.altitude
+                        LISBON_VIEW.altitude * 0.4 // Closer for diorama feel
                     ),
                     orientation: {
-                        heading: Cesium.Math.toRadians(LISBON_VIEW.heading),
-                        pitch: Cesium.Math.toRadians(LISBON_VIEW.pitch),
+                        heading: Cesium.Math.toRadians(45), // Isometric angle
+                        pitch: Cesium.Math.toRadians(-30),  // Low angle
                         roll: 0,
                     },
                     duration: 0,
