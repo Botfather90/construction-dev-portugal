@@ -369,12 +369,19 @@ export default function MapPage() {
         const lat = parseFloat(result.lat);
         const lon = parseFloat(result.lon);
 
+        // Set property coords so the feasibility panel can work
+        setSelectedPropertyCoords({ lat, lng: lon });
+        setConstraintsResult(null);
+        setAiResult(null);
+        setUserPrompt('');
+        setAiPanelOpen(true);
+
         // Fly closely to the searched property for evaluation
         viewerRef.current.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 200),
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 250),
             orientation: {
                 heading: Cesium.Math.toRadians(0),
-                pitch: Cesium.Math.toRadians(-45),
+                pitch: Cesium.Math.toRadians(-35),
                 roll: 0,
             },
             duration: 2,
@@ -756,10 +763,55 @@ export default function MapPage() {
                                     </button>
                                 )}
                             </>
+                        ) : selectedPropertyCoords ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div>
+                                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>Property Selected</div>
+                                    <div style={{ fontSize: '14px', color: 'white' }}>{selectedPropertyCoords.lat.toFixed(4)}°N, {selectedPropertyCoords.lng.toFixed(4)}°W</div>
+                                </div>
+
+                                <button
+                                    onClick={() => fetchConstraints(true)}
+                                    disabled={constraintsLoading}
+                                    className="btn btn-sm"
+                                    style={{
+                                        width: '100%', padding: '14px',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        color: 'white', fontWeight: 600, border: 'none',
+                                        borderRadius: '8px', cursor: 'pointer',
+                                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                        <Building2 size={16} /> Maximize Legal Yield
+                                    </div>
+                                </button>
+
+                                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Or Describe Specific Modification</label>
+                                <textarea
+                                    style={{
+                                        width: '100%', background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)', color: 'white',
+                                        padding: '12px', borderRadius: '8px', minHeight: '80px',
+                                        fontSize: '14px', outline: 'none', resize: 'vertical'
+                                    }}
+                                    placeholder="e.g. Build a 2-story house with a wooden annex..."
+                                    value={userPrompt}
+                                    onChange={(e) => setUserPrompt(e.target.value)}
+                                />
+                                <button
+                                    onClick={() => fetchConstraints(false)}
+                                    disabled={!userPrompt.trim() || constraintsLoading}
+                                    className="btn btn-sm btn-secondary"
+                                    style={{ width: '100%', padding: '8px' }}
+                                >
+                                    Check Viability
+                                </button>
+                            </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', textAlign: 'center', padding: '20px' }}>
                                 <MousePointerClick size={32} style={{ marginBottom: '16px', opacity: 0.5 }} />
-                                <p>Click anywhere on the map to analyze a property and simulate modifications.</p>
+                                <p>Search for an address or click anywhere on the map to begin analysis.</p>
                             </div>
                         )}
                     </div>
