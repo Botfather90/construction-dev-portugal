@@ -403,8 +403,9 @@ export default function MapPage() {
         setIsPlacing(false);
     };
 
-    const fetchConstraints = async () => {
-        if (!selectedPropertyCoords || !userPrompt.trim()) return;
+    const fetchConstraints = async (isMaximizeYield: boolean = false) => {
+        if (!selectedPropertyCoords) return;
+        if (!isMaximizeYield && !userPrompt.trim()) return;
 
         setConstraintsLoading(true);
         setConstraintsResult(null);
@@ -413,7 +414,8 @@ export default function MapPage() {
             const req: ConstraintCheckRequest = {
                 lat: selectedPropertyCoords.lat,
                 lng: selectedPropertyCoords.lng,
-                prompt: userPrompt
+                prompt: userPrompt,
+                isMaximizeYield
             };
             const res = await axios.post('/api/check-permits', req);
             if (res.data.success) {
@@ -435,7 +437,8 @@ export default function MapPage() {
                 zone: constraintsResult.zone,
                 prompt: userPrompt,
                 intent: constraintsResult.parsedIntent,
-                allowedModifications: constraintsResult.allowedModifications
+                allowedModifications: constraintsResult.allowedModifications,
+                feasibilityMath: constraintsResult.feasibilityMath
             });
             if (res.data.success) {
                 setAiResult({
@@ -595,7 +598,30 @@ export default function MapPage() {
 
                                 {/* Freeform Prompt Area */}
                                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: '#e2e8f0' }}>Desired Modification</label>
+
+                                    <button
+                                        onClick={() => fetchConstraints(true)}
+                                        disabled={constraintsLoading}
+                                        className="btn btn-sm"
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            marginBottom: '16px',
+                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                            color: 'white',
+                                            fontWeight: 600,
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                            <Building2 size={16} /> Maximize Legal Yield
+                                        </div>
+                                    </button>
+
+                                    <label style={{ display: 'block', fontSize: '12px', marginBottom: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Or Describe Specific Modification</label>
                                     <textarea
                                         style={{
                                             width: '100%',
@@ -609,53 +635,124 @@ export default function MapPage() {
                                             outline: 'none',
                                             resize: 'vertical'
                                         }}
-                                        placeholder="e.g. Build a 2-story house with a wooden annex, or subdivide into two units..."
+                                        placeholder="e.g. Build a 2-story house with a wooden annex, or extend commercial space..."
                                         value={userPrompt}
                                         onChange={(e) => setUserPrompt(e.target.value)}
                                     />
                                     <button
-                                        onClick={fetchConstraints}
+                                        onClick={() => fetchConstraints(false)}
                                         disabled={!userPrompt.trim() || constraintsLoading}
                                         className="btn btn-sm btn-secondary"
                                         style={{ marginTop: '12px', width: '100%', padding: '8px' }}
                                     >
-                                        Check Permitting Viability
+                                        Check Viability
                                     </button>
                                 </div>
 
-                                {/* Legality Check */}
+                                {/* Feasibility & Legality Check */}
                                 {constraintsResult && (
-                                    <div style={{
-                                        padding: '16px', borderRadius: '12px',
-                                        background: constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        border: `1px solid ${constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: constraintsResult.isLegal ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: '8px' }}>
-                                            {constraintsResult.isLegal ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                                            {constraintsResult.isLegal ? 'Modification Legally Viable' : 'Exceeds Legal Limits'}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                                        {/* ROI Math Block */}
+                                        {constraintsResult.feasibilityMath && (
+                                            <div style={{
+                                                padding: '16px', borderRadius: '12px',
+                                                background: 'rgba(59, 130, 246, 0.1)', // Blue tint for math
+                                                border: '1px solid rgba(59, 130, 246, 0.2)'
+                                            }}>
+                                                <div style={{ fontSize: '12px', textTransform: 'uppercase', color: '#93c5fd', fontWeight: 600, marginBottom: '8px' }}>ROI Feasibility Math</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px', marginBottom: '6px' }}>
+                                                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>Lot Size</span>
+                                                    <span style={{ color: 'white', fontSize: '13px', fontWeight: 500 }}>{constraintsResult.feasibilityMath.lotAreaSqMeters} m²</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px', marginBottom: '6px' }}>
+                                                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>Max Implantation</span>
+                                                    <span style={{ color: 'white', fontSize: '13px', fontWeight: 500 }}>{constraintsResult.feasibilityMath.maxAllowedFootprintSqMeters} m²</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '6px', marginTop: '12px' }}>
+                                                    <span style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 600 }}>Unbuilt Footprint</span>
+                                                    <span style={{ color: '#fbbf24', fontSize: '16px', fontWeight: 700 }}>+{constraintsResult.feasibilityMath.unbuiltFootprintSqMeters} m²</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Permit Pipeline / Timeline */}
+                                        <div style={{
+                                            padding: '16px', borderRadius: '12px',
+                                            background: 'rgba(245, 158, 11, 0.1)', // Amber warning tint
+                                            border: '1px solid rgba(245, 158, 11, 0.2)'
+                                        }}>
+                                            <div style={{ fontSize: '12px', textTransform: 'uppercase', color: '#fcd34d', fontWeight: 600, marginBottom: '8px' }}>Permitting Pipeline</div>
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                                <div style={{ background: '#d97706', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                    {constraintsResult.permitType}
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: '#fde68a', lineHeight: 1.4 }}>
+                                                    Estimated minimum municipal approval timeline: <strong>{constraintsResult.estimatedTimelineDays} days</strong>.
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            {constraintsResult.allowedModifications.map((mod, i) => <li key={i}>{mod}</li>)}
-                                            {!constraintsResult.isLegal && constraintsResult.restrictions.map((res, i) => <li key={i} style={{ color: '#f87171' }}>{res}</li>)}
-                                        </ul>
+                                        {/* Legality Box */}
+                                        <div style={{
+                                            padding: '16px', borderRadius: '12px',
+                                            background: constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                            border: `1px solid ${constraintsResult.isLegal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: constraintsResult.isLegal ? '#10b981' : '#ef4444', fontWeight: 600, marginBottom: '8px' }}>
+                                                {constraintsResult.isLegal ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                                                {constraintsResult.isLegal ? 'Modification Legally Viable' : 'Exceeds Legal Limits'}
+                                            </div>
+
+                                            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                {constraintsResult.allowedModifications.map((mod, i) => <li key={i}>{mod}</li>)}
+                                                {!constraintsResult.isLegal && constraintsResult.restrictions.map((res, i) => <li key={i} style={{ color: '#f87171' }}>{res}</li>)}
+                                            </ul>
+                                        </div>
                                     </div>
                                 )}
 
                                 {/* AI Result or Button */}
                                 {aiResult ? (
                                     <div style={{ marginTop: 'auto' }}>
-                                        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>AI Visualization</div>
-                                        <img src={aiResult.imageUrl} alt="AI Generated visualization" style={{ width: '100%', borderRadius: '8px', objectFit: 'cover', aspectRatio: '16/9' }} />
+                                        <div style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 600, marginBottom: '8px' }}>AI Feasibility Render</div>
+                                        <img src={aiResult.imageUrl} alt="AI Generated visualization" style={{ width: '100%', borderRadius: '8px', objectFit: 'cover', aspectRatio: '16/9', border: '1px solid rgba(255,255,255,0.1)' }} />
+
+                                        <button
+                                            onClick={() => window.print()}
+                                            className="btn btn-sm"
+                                            style={{
+                                                marginTop: '16px', width: '100%', padding: '10px',
+                                                background: 'white', color: 'black', fontWeight: 600,
+                                                borderRadius: '8px', border: 'none', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                Download Feasibility Study (PDF)
+                                            </div>
+                                        </button>
                                     </div>
                                 ) : (
                                     <button
-                                        className="btn btn-primary"
-                                        style={{ width: '100%', marginTop: 'auto', padding: '14px' }}
-                                        onClick={handleGenerateAI}
-                                        disabled={!constraintsResult.isLegal || aiLoading}
+                                        className="btn"
+                                        onClick={() => handleGenerateAI()}
+                                        disabled={aiLoading || !constraintsResult.isLegal}
+                                        style={{
+                                            marginTop: 'auto',
+                                            width: '100%',
+                                            background: constraintsResult.isLegal ? 'white' : 'rgba(255,255,255,0.1)',
+                                            color: constraintsResult.isLegal ? 'black' : 'rgba(255,255,255,0.3)',
+                                            border: 'none',
+                                            fontWeight: 600,
+                                            padding: '12px',
+                                            borderRadius: '8px'
+                                        }}
                                     >
-                                        {aiLoading ? <Loader2 size={18} className="spin" /> : <><Wand2 size={18} /> Generate AI Preview</>}
+                                        {aiLoading ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                <div className="spinner" style={{ width: 14, height: 14, borderColor: 'rgba(0,0,0,0.2)', borderTopColor: 'black' }}></div> generating render...
+                                            </div>
+                                        ) : 'Generate AI Visualization '}
                                     </button>
                                 )}
                             </>

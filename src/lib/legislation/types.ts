@@ -7,6 +7,13 @@ export type ZoneClassification =
     | 'Rural/Agricultural'
     | 'Protected Natural Area';
 
+export type PermitType =
+    | 'Isento' // Exempt from licensing entirely
+    | 'Comunicação Prévia' // 20-day fast track
+    | 'Licenciamento' // 6-18 month full approval process
+    | 'Pedido de Informação Prévia (PIP)' // Feasibility request before licensing
+    | 'Destaque de Parcela'; // Subdivision specific payload
+
 // Expanded representation of PDM (Plano Diretor Municipal) rules
 export interface PDMRules {
     municipality: Municipality;
@@ -30,18 +37,20 @@ export interface PDMRules {
     allowsAnnexes: boolean;
     maxAnnexAreaSqMeters?: number;
     maxBoundaryWallHeightMeters: number;
-    requiresArchitecturalApproval: boolean; // "Licenciamento" vs "Comunicação Prévia"
+    requiresArchitecturalApproval: boolean; // True forces Licenciamento generally
 
     notes: string[];
 }
 
+// Structured intent for the backend to run math against.
+// Extracted from user prompts or generated automatically via "Maximize Yield".
 export type UserIntentAction =
     | 'add_floors'
     | 'subdivide_lot'
     | 'build_annex'
     | 'change_usage'
     | 'build_wall'
-    | 'exterior_modification'
+    | 'maximize_yield' // The master ROI button mapping
     | 'unknown';
 
 export interface ParsedUserIntent {
@@ -54,24 +63,36 @@ export interface ParsedUserIntent {
     description: string;
 }
 
+// Feasibility math objects returned to the frontend
+export interface FeasibilityMath {
+    lotAreaSqMeters: number;
+    currentImplantationAreaSqMeters: number;
+    maxAllowedFootprintSqMeters: number;
+    unbuiltFootprintSqMeters: number; // The golden number investors care about
+    maxTotalConstructionSqMeters: number; // e.g., footprint * floors
+}
+
 // Result of checking a property against PDM rules
 export interface ConstraintCheckResult {
     isLegal: boolean;
     municipality: Municipality;
     zone: ZoneClassification;
     parsedIntent?: ParsedUserIntent;
+    feasibilityMath?: FeasibilityMath; // The ROI calculation
+    permitType: PermitType;
+    estimatedTimelineDays: number; // Extremely important for commercial viability
     allowedModifications: string[];
     restrictions: string[];
-    requiredPermits: string[];
-    confidenceScore: number; // 0-1, lower if coords are near zone borders
+    confidenceScore: number;
 }
 
 // Request payload for checking constraints
 export interface ConstraintCheckRequest {
     lat: number;
     lng: number;
-    prompt: string; // The freeform text input from the user
+    prompt: string; // Used if they type manually
+    isMaximizeYield?: boolean; // True if they click the ROI button
     currentFloors?: number;
-    lotAreaSqMeters?: number;
-    currentImplantationAreaSqMeters?: number;
+    lotAreaSqMeters?: number; // Ideally drawn from actual GIS layer or mocked default
+    currentImplantationAreaSqMeters?: number; // Base footprint of existing structures
 }

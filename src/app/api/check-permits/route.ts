@@ -8,17 +8,20 @@ export async function POST(request: NextRequest) {
         const body: ConstraintCheckRequest = await request.json();
 
         // Validate basic request shape
-        if (!body.lat || !body.lng || !body.prompt) {
+        if (!body.lat || !body.lng || (!body.prompt && !body.isMaximizeYield)) {
             return NextResponse.json(
-                { success: false, error: 'Missing required parameters (lat, lng, or prompt)' },
+                { success: false, error: 'Missing required parameters (lat, lng, and either prompt or isMaximizeYield)' },
                 { status: 400 }
             );
         }
 
-        // 1. NLP Parse: Convert Portuguese text into structured architectural intent
-        const parsedIntent = await parseUserIntent(body.prompt);
+        // 1. NLP Parse: Convert Portuguese text into structured architectural intent ONLY if not maximizing ROI
+        let parsedIntent;
+        if (!body.isMaximizeYield && body.prompt) {
+            parsedIntent = await parseUserIntent(body.prompt);
+        }
 
-        // 2. Evaluate specific legal constraints against that parsed intent
+        // 2. Evaluate specific legal constraints against that intent or the ROI math request
         const evaluationResult = evaluatePropertyConstraints(body, parsedIntent);
 
         return NextResponse.json({

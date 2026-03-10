@@ -3,22 +3,30 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { municipality, zone, prompt, intent, allowedModifications } = body;
+        const { municipality, zone, prompt, intent, allowedModifications, feasibilityMath } = body;
 
-        if (!municipality || !zone || !prompt) {
+        if (!municipality || !zone || (!prompt && !feasibilityMath)) {
             return NextResponse.json(
                 { success: false, error: 'Missing required parameters' },
                 { status: 400 }
             );
         }
 
-        // Combine the user's core intent with the legal constraints
+        // Combine the user's core intent with the rigid Feasibility Engine mathematics
+        let unbuiltContext = '';
+        if (feasibilityMath && feasibilityMath.unbuiltFootprintSqMeters > 0) {
+            unbuiltContext = `\nMANDATORY STRUCTURAL LIMIT: The proposed expansion MUST utilize exactly ${feasibilityMath.unbuiltFootprintSqMeters}m² of unbuilt ground footprint. Total construction mass cannot exceed ${feasibilityMath.maxTotalConstructionSqMeters}m².\n`;
+        }
+
         const strictPrompt = `
-USER REQUEST: "${prompt}"
-LEGAL CONSTRAINTS TO ENFORCE in ${zone}, ${municipality}:
+ARCHITECTURAL RENDER INSTRUCTION:
+Location: ${zone}, ${municipality}, Portugal.
+Request: "${prompt || 'Maximize permitted yield on this lot.'}"
+${unbuiltContext}
+LEGAL CONSTRAINTS TO STRICTLY ENFORCE:
 ${allowedModifications?.join('\n') || 'Must conform to local style.'}
 
-ARCHITECTURAL STYLE: Modern Portuguese, highly realistic.
+Aesthetic: Ultra-realistic, 8k resolution, modern Portuguese architecture, highly professional developer pitch visualization.
         `;
 
         // Here we would call the Gemini "Nano Banana" image generation API.
