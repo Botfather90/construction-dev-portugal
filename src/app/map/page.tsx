@@ -79,7 +79,7 @@ export default function MapPage() {
 
                 // Set access token
                 Cesium.Ion.defaultAccessToken =
-                    process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || '';
+                    (process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || '').trim();
 
                 if (!mounted || !containerRef.current) return;
 
