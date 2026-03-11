@@ -63,12 +63,14 @@ export default function MapPage() {
 
     // AI & Legislation State
     const [selectedPropertyCoords, setSelectedPropertyCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [selectedAddress, setSelectedAddress] = useState<string>('');
     const [userPrompt, setUserPrompt] = useState<string>('');
     const [constraintsLoading, setConstraintsLoading] = useState(false);
     const [constraintsResult, setConstraintsResult] = useState<ConstraintCheckResult | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResult, setAiResult] = useState<{ imageUrl: string, promptUsed: string } | null>(null);
     const [aiPanelOpen, setAiPanelOpen] = useState(false);
+    const pinEntityRef = useRef<any>(null);
 
     // Refs for event handlers
     const isPlacingRef = useRef(isPlacing);
@@ -231,23 +233,7 @@ export default function MapPage() {
                         setIsPlacing(false);
                     } else {
                         // 2. Property Selection Mode for AI Check
-                        setSelectedPropertyCoords({ lat, lng: lon });
-                        // Fly closely to the selected property but not into the floor
-                        viewer.camera.flyTo({
-                            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 500), // Wider view
-                            orientation: {
-                                heading: viewer.camera.heading,
-                                pitch: Cesium.Math.toRadians(-35),
-                                roll: 0,
-                            },
-                            duration: 1.5,
-                        });
-
-                        // Reset prompt when a new property is clicked
-                        setUserPrompt('');
-                        setConstraintsResult(null);
-                        setAiResult(null);
-                        setAiPanelOpen(true);
+                        placePropertyPin(lat, lon);
                     }
                 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -361,6 +347,77 @@ export default function MapPage() {
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
+    // Place a visual pin on the map and set selection state
+    const placePropertyPin = (lat: number, lon: number, address?: string) => {
+        if (!viewerRef.current || !Cesium) return;
+        const viewer = viewerRef.current;
+
+        // Remove existing pin
+        if (pinEntityRef.current) {
+            viewer.entities.remove(pinEntityRef.current);
+        }
+
+        // Add a visible pin marker
+        pinEntityRef.current = viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(lon, lat),
+            billboard: {
+                image: 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10b981" stroke="white" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`),
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                scale: 1.0,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: address ? address.split(',')[0] : 'Selected Property',
+                font: '13px sans-serif',
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                outlineWidth: 3,
+                outlineColor: Cesium.Color.BLACK,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -52),
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+
+        // Set state
+        setSelectedPropertyCoords({ lat, lng: lon });
+        setUserPrompt('');
+        setConstraintsResult(null);
+        setAiResult(null);
+        setAiPanelOpen(true);
+
+        // Set address if provided, otherwise reverse geocode
+        if (address) {
+            setSelectedAddress(address);
+        } else {
+            setSelectedAddress(`${lat.toFixed(4)}°N, ${Math.abs(lon).toFixed(4)}°W`);
+            // Reverse geocode to get actual address
+            axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`)
+                .then(res => {
+                    if (res.data?.display_name) {
+                        setSelectedAddress(res.data.display_name);
+                        // Update pin label
+                        if (pinEntityRef.current) {
+                            pinEntityRef.current.label.text = res.data.display_name.split(',')[0];
+                        }
+                    }
+                })
+                .catch(() => { /* Keep coordinate fallback */ });
+        }
+
+        // Fly to location
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 250),
+            orientation: {
+                heading: viewer.camera.heading || Cesium.Math.toRadians(0),
+                pitch: Cesium.Math.toRadians(-35),
+                roll: 0,
+            },
+            duration: 1.5,
+        });
+    };
+
     const handleSelectAddress = (result: any) => {
         setSearchQuery(result.display_name);
         setSearchOpen(false);
@@ -368,24 +425,7 @@ export default function MapPage() {
 
         const lat = parseFloat(result.lat);
         const lon = parseFloat(result.lon);
-
-        // Set property coords so the feasibility panel can work
-        setSelectedPropertyCoords({ lat, lng: lon });
-        setConstraintsResult(null);
-        setAiResult(null);
-        setUserPrompt('');
-        setAiPanelOpen(true);
-
-        // Fly closely to the searched property for evaluation
-        viewerRef.current.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 250),
-            orientation: {
-                heading: Cesium.Math.toRadians(0),
-                pitch: Cesium.Math.toRadians(-35),
-                roll: 0,
-            },
-            duration: 2,
-        });
+        placePropertyPin(lat, lon, result.display_name);
     };
 
     // Floor plan upload
@@ -766,8 +806,8 @@ export default function MapPage() {
                         ) : selectedPropertyCoords ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 <div>
-                                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>Property Selected</div>
-                                    <div style={{ fontSize: '14px', color: 'white' }}>{selectedPropertyCoords.lat.toFixed(4)}°N, {selectedPropertyCoords.lng.toFixed(4)}°W</div>
+                                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>📍 Property Selected</div>
+                                    <div style={{ fontSize: '14px', color: 'white', lineHeight: 1.4 }}>{selectedAddress || `${selectedPropertyCoords.lat.toFixed(4)}°N, ${selectedPropertyCoords.lng.toFixed(4)}°W`}</div>
                                 </div>
 
                                 <button
