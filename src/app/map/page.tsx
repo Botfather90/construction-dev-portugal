@@ -37,10 +37,13 @@ import '@/styles/map.css';
 let Cesium: any = null;
 
 export default function MapPage() {
+    const [mounted, setMounted] = useState(false);
     const viewerRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { setMounted(true); }, []);
 
     // Search & Geocoding
     const [searchQuery, setSearchQuery] = useState('');
@@ -499,6 +502,17 @@ export default function MapPage() {
             setAiLoading(false);
         }
     };
+
+    if (!mounted) {
+        return (
+            <div className="map-page" id="map-page" style={{ background: '#0b101e', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }}></div>
+                    <p>Initializing ConstruViz...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="map-page" id="map-page">
