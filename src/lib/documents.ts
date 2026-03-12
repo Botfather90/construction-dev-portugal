@@ -91,13 +91,13 @@ export function formatFileSize(bytes: number): string {
 
 export function getFileTypeIcon(type: DocumentFileType): string {
     switch (type) {
-        case 'pdf': return '📄';
+        case 'pdf': return 'PDF';
         case 'dwg':
-        case 'dxf': return '📐';
-        case 'ifc': return '🏗️';
+        case 'dxf': return 'CAD';
+        case 'ifc': return 'BIM';
         case 'jpg':
-        case 'png': return '🖼️';
-        default: return '📎';
+        case 'png': return 'IMG';
+        default: return 'DOC';
     }
 }
 

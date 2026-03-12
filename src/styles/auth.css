@@ -1,0 +1,168 @@
+/* ============================================================
+   ConstruViz — Auth Page
+   Glassmorphism login card with animated background
+   ============================================================ */
+
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: var(--space-4);
+}
+
+.auth-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.auth-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+}
+
+.auth-orb-1 {
+    width: 400px;
+    height: 400px;
+    top: 20%;
+    left: 20%;
+    background: rgba(6, 182, 212, 0.08);
+    animation: float 8s ease-in-out infinite;
+}
+
+.auth-orb-2 {
+    width: 300px;
+    height: 300px;
+    bottom: 20%;
+    right: 20%;
+    background: rgba(139, 92, 246, 0.06);
+    animation: float 10s ease-in-out infinite;
+    animation-delay: 2s;
+}
+
+.auth-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: var(--space-10);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-2xl);
+    text-align: center;
+    animation: scaleIn 0.4s ease-out;
+    box-shadow: var(--shadow-glass);
+}
+
+.auth-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-8);
+    letter-spacing: -0.03em;
+}
+
+.auth-card h1 {
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: var(--space-3);
+}
+
+.auth-subtitle {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-relaxed);
+    margin-bottom: var(--space-8);
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.auth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-6);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-base);
+}
+
+.btn-google:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-border-strong);
+    transform: translateY(-1px);
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border-subtle);
+}
+
+.btn-demo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3) var(--space-6);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-on-accent);
+    background: var(--gradient-primary);
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: 0 0 24px rgba(6, 182, 212, 0.2);
+}
+
+.btn-demo:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 40px rgba(6, 182, 212, 0.35);
+}
+
+.auth-footer-text {
+    margin-top: var(--space-6);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    line-height: var(--leading-relaxed);
+}

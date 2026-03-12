@@ -1,16 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Building2,
-    Cpu,
-    Upload,
-    DollarSign,
     Globe,
     Layers,
     Brain,
     FileUp,
-    Check,
     ArrowRight,
     Map,
     BarChart3,
@@ -18,158 +14,234 @@ import {
     X,
     Menu,
     ChevronRight,
-    Sparkles,
     Zap,
+    Check,
+    Eye,
+    Target,
+    Workflow,
+    Users,
+    TrendingUp,
+    Clock,
+    FileCheck,
+    DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import '@/styles/landing.css';
 
-const FEATURES = [
+/* ---- Particle Canvas ---- */
+function ParticleHero() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animationId: number;
+        let particles: Array<{
+            x: number; y: number;
+            vx: number; vy: number;
+            size: number; opacity: number;
+        }> = [];
+
+        const resize = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Create particles
+        for (let i = 0; i < 80; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                size: Math.random() * 2 + 0.5,
+                opacity: Math.random() * 0.5 + 0.1,
+            });
+        }
+
+        const animate = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x < 0) p.x = canvas.width;
+                if (p.x > canvas.width) p.x = 0;
+                if (p.y < 0) p.y = canvas.height;
+                if (p.y > canvas.height) p.y = 0;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(6, 182, 212, ${p.opacity})`;
+                ctx.fill();
+
+                // Draw lines between nearby particles
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[j].x - p.x;
+                    const dy = particles[j].y - p.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(6, 182, 212, ${0.06 * (1 - dist / 150)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            });
+
+            animationId = requestAnimationFrame(animate);
+        };
+        animate();
+
+        return () => {
+            cancelAnimationFrame(animationId);
+            window.removeEventListener('resize', resize);
+        };
+    }, []);
+
+    return <canvas ref={canvasRef} className="particle-canvas" />;
+}
+
+/* ---- Animated Counter ---- */
+function AnimatedCounter({ end, suffix = '' }: { end: number; suffix?: string }) {
+    const [count, setCount] = useState(0);
+    const ref = useRef<HTMLDivElement>(null);
+    const counted = useRef(false);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !counted.current) {
+                    counted.current = true;
+                    const duration = 2000;
+                    const start = performance.now();
+                    const step = (now: number) => {
+                        const progress = Math.min((now - start) / duration, 1);
+                        const eased = 1 - Math.pow(1 - progress, 3);
+                        setCount(Math.floor(eased * end));
+                        if (progress < 1) requestAnimationFrame(step);
+                    };
+                    requestAnimationFrame(step);
+                }
+            },
+            { threshold: 0.5 }
+        );
+        if (ref.current) observer.observe(ref.current);
+        return () => observer.disconnect();
+    }, [end]);
+
+    return <div ref={ref}>{count.toLocaleString()}{suffix}</div>;
+}
+
+/* ---- Data ---- */
+const PROCESS_STEPS = [
+    {
+        num: '01',
+        icon: <Target size={22} />,
+        title: 'Select Location',
+        description: 'Click anywhere on the 3D map or search an address in Portugal to begin your feasibility analysis.',
+    },
+    {
+        num: '02',
+        icon: <Brain size={22} />,
+        title: 'AI Analysis',
+        description: 'Our engine cross-references PDM zoning, building codes, and lot data to calculate maximum legal yield.',
+    },
+    {
+        num: '03',
+        icon: <FileUp size={22} />,
+        title: 'Upload & Visualize',
+        description: 'Drop floor plans or design your building directly on the map. See it rendered in real 3D city context.',
+    },
+    {
+        num: '04',
+        icon: <FileCheck size={22} />,
+        title: 'Permit & Feasibility',
+        description: 'Get permit cost estimates, required documents checklist, and timeline predictions for municipal approval.',
+    },
+];
+
+const CAPABILITIES = [
     {
         icon: <Globe size={24} />,
-        colorClass: 'feature-icon-cyan',
         title: 'Real 3D City Context',
-        description:
-            'Every project is automatically placed in its real-world location with surrounding buildings, terrain, and infrastructure. No more guessing — see exactly how your development fits.',
+        description: 'Every project placed in its real-world location with surrounding buildings, terrain, and infrastructure.',
+        accent: 'cyan',
     },
     {
         icon: <Brain size={24} />,
-        colorClass: 'feature-icon-violet',
-        title: 'AI-Powered Analysis',
-        description:
-            'Automatic extraction of measurements, shadow analysis, view corridor assessment, and regulatory compliance checking against Portuguese building codes.',
+        title: 'AI-Powered Feasibility',
+        description: 'Automatic extraction of measurements, shadow analysis, and regulatory compliance against Portuguese building codes.',
+        accent: 'violet',
     },
     {
-        icon: <FileUp size={24} />,
-        colorClass: 'feature-icon-emerald',
-        title: 'Upload & Visualize',
-        description:
-            'Drag-and-drop floor plans (PDF, DWG, IFC) and instantly see them rendered in 3D. Multi-floor support, version comparison, and automatic room detection.',
+        icon: <Layers size={24} />,
+        title: 'Architectural Layers',
+        description: 'View building floor-by-floor — foundation, ground, upper levels, roof. Toggle layers for detailed architectural review.',
+        accent: 'emerald',
     },
     {
-        icon: <DollarSign size={24} />,
-        colorClass: 'feature-icon-amber',
-        title: '10x Cost Advantage',
-        description:
-            'Enterprise-grade capabilities starting at €99/month. Get 80% of the value of tools costing €3,000+/year, designed specifically for Portuguese developers.',
+        icon: <Shield size={24} />,
+        title: 'Permit Intelligence',
+        description: 'Instant permit type detection (Licenciamento vs. Comunicacao Previa), cost estimates, and required document checklists.',
+        accent: 'amber',
     },
+    {
+        icon: <Building2 size={24} />,
+        title: 'Building Simulation',
+        description: 'Place mockup buildings on empty lots. Configure height, floors, and style. Visualize remodels before breaking ground.',
+        accent: 'blue',
+    },
+    {
+        icon: <TrendingUp size={24} />,
+        title: 'ROI Calculator',
+        description: 'Maximize legal yield with construction index calculations, unbuilt footprint analysis, and investment feasibility math.',
+        accent: 'rose',
+    },
+];
+
+const STATS = [
+    { value: 350, suffix: 'M+', label: '3D Buildings Rendered' },
+    { value: 25, suffix: 'cm', label: 'Satellite Resolution' },
+    { value: 10, suffix: 'x', label: 'Lower Cost' },
+    { value: 48, suffix: 'h', label: 'Permit Analysis Saved' },
 ];
 
 const PRICING = [
     {
         tier: 'Starter',
-        price: '€99',
+        price: '\u20ac99',
         period: '/mo',
-        description: 'For freelance architects and small agencies',
-        features: [
-            '3 active projects',
-            '3D map with real buildings',
-            'Plan upload (10/month)',
-            'Basic 3D views',
-            '1 user seat',
-        ],
+        description: 'Freelance architects and small agencies',
+        features: ['3 active projects', '3D map with real buildings', 'Plan upload (10/mo)', 'Basic 3D views', '1 user seat'],
         cta: 'Start Free Trial',
         featured: false,
     },
     {
         tier: 'Professional',
-        price: '€199',
+        price: '\u20ac199',
         period: '/mo',
-        description: 'For SME developers and engineering firms',
-        features: [
-            '10 active projects',
-            'AI-powered analysis',
-            'Shadow studies',
-            '5 user seats',
-            'Presentations & IFC support',
-            'Priority email support',
-        ],
+        description: 'SME developers and engineering firms',
+        features: ['10 active projects', 'AI-powered analysis', 'Shadow & feasibility studies', '5 user seats', 'Permit intelligence', 'Priority support'],
         cta: 'Start Free Trial',
         featured: true,
-    },
-    {
-        tier: 'Business',
-        price: '€399',
-        period: '/mo',
-        description: 'For mid-market developers and construction companies',
-        features: [
-            'Unlimited projects',
-            'Compliance checker',
-            'API access',
-            '20 user seats',
-            'White-label reports',
-            'Priority support',
-        ],
-        cta: 'Contact Sales',
-        featured: false,
     },
     {
         tier: 'Enterprise',
         price: 'Custom',
         period: '',
-        description: 'For large firms and municipalities',
-        features: [
-            'Everything in Business',
-            'SSO & custom integrations',
-            'Municipality dashboard',
-            'Dedicated CSM',
-            'Custom SLA',
-            'On-premise option',
-        ],
+        description: 'Large firms and municipalities',
+        features: ['Unlimited projects', 'Full API access', 'SSO & custom integrations', 'Municipality dashboard', 'White-label reports', 'Dedicated CSM'],
         cta: 'Contact Sales',
         featured: false,
-    },
-];
-
-const COMPARISON = [
-    {
-        solution: 'Autodesk Revit',
-        cost: '€2,675-3,675/yr',
-        city3d: false,
-        ai: false,
-        planUpload: 'BIM only',
-        ptFocus: false,
-    },
-    {
-        solution: 'Autodesk Forma',
-        cost: '€3,675+/yr',
-        city3d: true,
-        ai: 'Partial',
-        planUpload: false,
-        ptFocus: false,
-    },
-    {
-        solution: 'Procore',
-        cost: '€4,500+/yr',
-        city3d: false,
-        ai: false,
-        planUpload: 'Markup',
-        ptFocus: false,
-    },
-    {
-        solution: 'ArcGIS GeoBIM',
-        cost: '€10,000+/yr',
-        city3d: true,
-        ai: false,
-        planUpload: 'BIM only',
-        ptFocus: false,
-    },
-    {
-        solution: 'Giraffe',
-        cost: '€540-1,500/yr',
-        city3d: true,
-        ai: 'Partial',
-        planUpload: 'Limited',
-        ptFocus: false,
-    },
-    {
-        solution: 'ConstruViz',
-        cost: '€1,188-2,388/yr',
-        city3d: true,
-        ai: true,
-        planUpload: true,
-        ptFocus: true,
-        highlight: true,
     },
 ];
 
@@ -187,27 +259,27 @@ export default function LandingPage() {
         <>
             {/* ---- Navigation ---- */}
             <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`} id="main-nav">
-                <div className="container nav-inner">
+                <div className="nav-inner container">
                     <Link href="/" className="nav-logo">
                         <div className="nav-logo-icon">
-                            <Building2 size={20} />
+                            <Building2 size={18} />
                         </div>
                         ConstruViz
                     </Link>
 
-                    <ul className="nav-links hide-mobile">
-                        <li><a href="#features">Features</a></li>
-                        <li><a href="#pricing">Pricing</a></li>
-                        <li><a href="#comparison">Compare</a></li>
-                    </ul>
+                    <div className="nav-center hide-mobile">
+                        <a href="#process">How It Works</a>
+                        <a href="#capabilities">Capabilities</a>
+                        <a href="#pricing">Pricing</a>
+                    </div>
 
                     <div className="nav-actions">
-                        <Link href="/dashboard" className="btn btn-ghost hide-mobile">
-                            Dashboard
+                        <Link href="/auth" className="btn btn-ghost btn-sm hide-mobile">
+                            Sign In
                         </Link>
-                        <Link href="/map" className="btn btn-primary">
-                            <Map size={16} />
-                            Open Map
+                        <Link href="/map" className="btn btn-primary btn-sm">
+                            <Map size={14} />
+                            Launch Map
                         </Link>
                         <button
                             className="btn btn-icon btn-ghost hide-desktop"
@@ -219,237 +291,238 @@ export default function LandingPage() {
                     </div>
                 </div>
 
-                {/* Mobile menu */}
                 {mobileMenuOpen && (
-                    <div
-                        className="glass-strong"
-                        style={{
-                            padding: 'var(--space-4) var(--space-6)',
-                            borderTop: '1px solid var(--color-border-subtle)',
-                        }}
-                    >
-                        <a href="#features" style={{ display: 'block', padding: '8px 0', color: 'var(--color-text-secondary)' }}>Features</a>
-                        <a href="#pricing" style={{ display: 'block', padding: '8px 0', color: 'var(--color-text-secondary)' }}>Pricing</a>
-                        <a href="#comparison" style={{ display: 'block', padding: '8px 0', color: 'var(--color-text-secondary)' }}>Compare</a>
-                        <Link href="/dashboard" style={{ display: 'block', padding: '8px 0', color: 'var(--color-text-secondary)' }}>Dashboard</Link>
+                    <div className="mobile-menu glass-strong">
+                        <a href="#process" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
+                        <a href="#capabilities" onClick={() => setMobileMenuOpen(false)}>Capabilities</a>
+                        <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
+                        <Link href="/auth" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
+                        <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
                     </div>
                 )}
             </nav>
 
             {/* ---- Hero ---- */}
             <section className="hero" id="hero">
-                <div className="hero-bg">
-                    <div className="hero-grid" />
+                <ParticleHero />
+                <div className="hero-beams">
+                    <div className="beam beam-1" />
+                    <div className="beam beam-2" />
+                    <div className="beam beam-3" />
                 </div>
+                <div className="hero-gradient-orb" />
+
                 <div className="container hero-content">
                     <div className="hero-badge">
                         <span className="hero-badge-dot" />
-                        AI-Native • Built for Portugal
+                        Built for Portugal
                     </div>
 
                     <h1>
-                        See Your{' '}
-                        <span className="gradient-text">Development</span>
-                        <br />
-                        In Real 3D Context
+                        Visualize Construction<br />
+                        <span className="gradient-text">Before Breaking Ground</span>
                     </h1>
 
                     <p className="hero-subtitle">
-                        Upload floor plans, visualize new construction alongside real surrounding
-                        buildings, and leverage AI for automated analysis — at 10x lower cost
-                        than enterprise tools.
+                        The AI-native platform for architects, engineers, and real estate developers.
+                        Upload plans, simulate buildings in real 3D city context, and get instant
+                        permit feasibility analysis.
                     </p>
 
                     <div className="hero-cta">
-                        <Link href="/map" className="btn btn-primary btn-lg">
+                        <Link href="/map" className="btn btn-primary btn-lg hero-btn-glow">
                             <Map size={18} />
-                            Explore the 3D Map
+                            Explore 3D Map
                             <ArrowRight size={16} />
                         </Link>
-                        <Link href="/dashboard" className="btn btn-secondary btn-lg">
-                            <Layers size={18} />
-                            View Dashboard
+                        <Link href="/auth" className="btn btn-glass btn-lg">
+                            Try Demo
                         </Link>
-                    </div>
-
-                    <div className="hero-stats">
-                        <div className="hero-stat">
-                            <div className="hero-stat-value gradient-text">350M+</div>
-                            <div className="hero-stat-label">3D Buildings Worldwide</div>
-                        </div>
-                        <div className="hero-stat">
-                            <div className="hero-stat-value gradient-text">25cm</div>
-                            <div className="hero-stat-label">Satellite Resolution (DGT)</div>
-                        </div>
-                        <div className="hero-stat">
-                            <div className="hero-stat-value gradient-text-warm">10x</div>
-                            <div className="hero-stat-label">Lower Cost Than Enterprise</div>
-                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* ---- Features ---- */}
-            <section className="section" id="features">
+            {/* ---- Stats Bar ---- */}
+            <section className="stats-bar">
                 <div className="container">
-                    <div className="section-header">
-                        <div className="section-label">
-                            <Sparkles size={16} />
-                            Core Capabilities
-                        </div>
-                        <h2 className="section-title">
-                            Everything You Need to{' '}
-                            <span className="gradient-text">Visualize Construction</span>
-                        </h2>
-                        <p className="section-description">
-                            From floor plan upload to 3D city context, ConstruViz gives you enterprise-grade
-                            visualization at a fraction of the cost.
-                        </p>
-                    </div>
-
-                    <div className="features-grid">
-                        {FEATURES.map((feature, i) => (
-                            <div
-                                key={i}
-                                className="feature-card"
-                                style={{ animationDelay: `${i * 0.1}s` }}
-                            >
-                                <div className={`feature-icon ${feature.colorClass}`}>
-                                    {feature.icon}
+                    <div className="stats-bar-inner">
+                        {STATS.map((stat, i) => (
+                            <div key={i} className="stats-bar-item">
+                                <div className="stats-bar-value gradient-text">
+                                    <AnimatedCounter end={stat.value} suffix={stat.suffix} />
                                 </div>
-                                <h3>{feature.title}</h3>
-                                <p>{feature.description}</p>
+                                <div className="stats-bar-label">{stat.label}</div>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* ---- Comparison ---- */}
-            <section className="section" id="comparison" style={{ background: 'var(--color-bg-secondary)' }}>
+            {/* ---- Process / How It Works ---- */}
+            <section className="section" id="process">
                 <div className="container">
                     <div className="section-header">
-                        <div className="section-label">
-                            <BarChart3 size={16} />
-                            Competitive Advantage
-                        </div>
+                        <div className="section-eyebrow">How It Works</div>
                         <h2 className="section-title">
-                            How We <span className="gradient-text-warm">Compare</span>
+                            From Location to <span className="gradient-text">Feasibility</span> in Minutes
+                        </h2>
+                    </div>
+
+                    <div className="process-grid">
+                        {PROCESS_STEPS.map((step, i) => (
+                            <div key={i} className="process-step">
+                                <div className="process-num">{step.num}</div>
+                                <div className="process-icon">{step.icon}</div>
+                                <h3>{step.title}</h3>
+                                <p>{step.description}</p>
+                                {i < PROCESS_STEPS.length - 1 && (
+                                    <div className="process-connector hide-mobile">
+                                        <ChevronRight size={16} />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* ---- Capabilities ---- */}
+            <section className="section section-alt" id="capabilities">
+                <div className="container">
+                    <div className="section-header">
+                        <div className="section-eyebrow">Capabilities</div>
+                        <h2 className="section-title">
+                            Enterprise Power,{' '}
+                            <span className="gradient-text">Accessible Price</span>
                         </h2>
                         <p className="section-description">
-                            ConstruViz is the only platform combining 3D city context, AI capabilities,
-                            floor plan upload, AND Portugal-specific focus at an accessible price.
+                            Everything architects, engineers, and developers need — 3D visualization,
+                            AI analysis, and permit intelligence in one platform.
                         </p>
                     </div>
 
-                    <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border-subtle)' }}>
-                        <table className="comparison-table">
-                            <thead>
-                                <tr>
-                                    <th>Solution</th>
-                                    <th>Annual Cost/Seat</th>
-                                    <th>3D City Context</th>
-                                    <th>AI Native</th>
-                                    <th>Floor Plan Upload</th>
-                                    <th>PT Focus</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {COMPARISON.map((row, i) => (
-                                    <tr key={i} className={row.highlight ? 'comparison-highlight' : ''}>
-                                        <td style={row.highlight ? { fontWeight: 700, color: 'var(--color-accent-cyan)' } : {}}>
-                                            {row.solution}
-                                        </td>
-                                        <td className={row.highlight ? 'comparison-highlight' : ''}>
-                                            {row.cost}
-                                        </td>
-                                        <td>
-                                            {row.city3d === true ? (
-                                                <Check size={16} className="check" />
-                                            ) : (
-                                                <X size={16} className="cross" />
-                                            )}
-                                        </td>
-                                        <td>
-                                            {row.ai === true ? (
-                                                <Check size={16} className="check" />
-                                            ) : row.ai === 'Partial' ? (
-                                                <span style={{ color: 'var(--color-accent-amber)', fontSize: 'var(--text-xs)' }}>Partial</span>
-                                            ) : (
-                                                <X size={16} className="cross" />
-                                            )}
-                                        </td>
-                                        <td>
-                                            {row.planUpload === true ? (
-                                                <Check size={16} className="check" />
-                                            ) : typeof row.planUpload === 'string' ? (
-                                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{row.planUpload}</span>
-                                            ) : (
-                                                <X size={16} className="cross" />
-                                            )}
-                                        </td>
-                                        <td>
-                                            {row.ptFocus ? (
-                                                <Check size={16} className="check" />
-                                            ) : (
-                                                <X size={16} className="cross" />
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div className="capabilities-grid">
+                        {CAPABILITIES.map((cap, i) => (
+                            <div key={i} className={`capability-item accent-${cap.accent}`}>
+                                <div className="capability-icon">{cap.icon}</div>
+                                <div className="capability-content">
+                                    <h3>{cap.title}</h3>
+                                    <p>{cap.description}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* ---- Showcase / Visual ---- */}
+            <section className="section" id="showcase">
+                <div className="container">
+                    <div className="showcase-split">
+                        <div className="showcase-text">
+                            <div className="section-eyebrow">Live 3D Simulation</div>
+                            <h2 className="section-title" style={{ textAlign: 'left' }}>
+                                Place Buildings on<br />
+                                <span className="gradient-text">Real City Maps</span>
+                            </h2>
+                            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-8)', lineHeight: 'var(--leading-relaxed)' }}>
+                                Select any empty lot, configure your building parameters, and see it rendered
+                                alongside real surrounding structures. Test remodels, expansions, and new construction
+                                with instant regulatory feedback.
+                            </p>
+                            <div className="showcase-features">
+                                <div className="showcase-feature">
+                                    <Eye size={16} />
+                                    <span>Multi-angle 3D views</span>
+                                </div>
+                                <div className="showcase-feature">
+                                    <Layers size={16} />
+                                    <span>Floor-by-floor layering</span>
+                                </div>
+                                <div className="showcase-feature">
+                                    <Workflow size={16} />
+                                    <span>Bridge & infrastructure</span>
+                                </div>
+                                <div className="showcase-feature">
+                                    <Users size={16} />
+                                    <span>Team collaboration</span>
+                                </div>
+                            </div>
+                            <Link href="/map" className="btn btn-primary" style={{ marginTop: 'var(--space-6)' }}>
+                                Open 3D Map
+                                <ArrowRight size={16} />
+                            </Link>
+                        </div>
+                        <div className="showcase-visual">
+                            <div className="showcase-mock">
+                                <div className="showcase-mock-header">
+                                    <span /><span /><span />
+                                </div>
+                                <div className="showcase-mock-body">
+                                    <div className="showcase-building">
+                                        <div className="building-floor building-roof" />
+                                        <div className="building-floor building-f3" />
+                                        <div className="building-floor building-f2" />
+                                        <div className="building-floor building-f1" />
+                                        <div className="building-floor building-ground" />
+                                        <div className="building-floor building-foundation" />
+                                    </div>
+                                    <div className="showcase-labels">
+                                        <span>Roof</span>
+                                        <span>Floor 3</span>
+                                        <span>Floor 2</span>
+                                        <span>Floor 1</span>
+                                        <span>Ground</span>
+                                        <span>Foundation</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
             {/* ---- Pricing ---- */}
-            <section className="section" id="pricing">
+            <section className="section section-alt" id="pricing">
                 <div className="container">
                     <div className="section-header">
-                        <div className="section-label">
-                            <Zap size={16} />
-                            Simple Pricing
-                        </div>
+                        <div className="section-eyebrow">Pricing</div>
                         <h2 className="section-title">
-                            Enterprise Power,{' '}
-                            <span className="gradient-text">Startup Price</span>
+                            Start Free, <span className="gradient-text">Scale When Ready</span>
                         </h2>
                         <p className="section-description">
-                            Start with 3 free projects. Upgrade when you need more power, more seats,
-                            or AI-driven analysis.
+                            3 free projects included. Upgrade when you need more power,
+                            more seats, or AI-driven analysis.
                         </p>
                     </div>
 
                     <div className="pricing-grid">
                         {PRICING.map((plan, i) => (
-                            <div
-                                key={i}
-                                className={`pricing-card ${plan.featured ? 'pricing-card-featured' : ''}`}
-                            >
-                                {plan.featured && <span className="pricing-popular">Most Popular</span>}
+                            <div key={i} className={`pricing-card ${plan.featured ? 'pricing-featured' : ''}`}>
+                                {plan.featured && <span className="pricing-popular">Recommended</span>}
                                 <div className="pricing-tier">{plan.tier}</div>
                                 <div className="pricing-price">
                                     <span className="pricing-amount">{plan.price}</span>
                                     {plan.period && <span className="pricing-period">{plan.period}</span>}
                                 </div>
-                                <div className="pricing-description">{plan.description}</div>
+                                <div className="pricing-desc">{plan.description}</div>
                                 <ul className="pricing-features">
                                     {plan.features.map((f, j) => (
                                         <li key={j}>
-                                            <Check size={16} />
+                                            <Check size={14} />
                                             {f}
                                         </li>
                                     ))}
                                 </ul>
                                 <div className="pricing-cta">
-                                    <button
-                                        className={`btn ${plan.featured ? 'btn-primary' : 'btn-secondary'}`}
+                                    <Link
+                                        href={plan.featured ? '/auth' : '#'}
+                                        className={`btn ${plan.featured ? 'btn-primary' : 'btn-glass'}`}
                                         style={{ width: '100%' }}
                                     >
                                         {plan.cta}
                                         <ChevronRight size={14} />
-                                    </button>
+                                    </Link>
                                 </div>
                             </div>
                         ))}
@@ -457,24 +530,28 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* ---- CTA ---- */}
+            {/* ---- Final CTA ---- */}
             <section className="cta-section">
+                <div className="cta-beams">
+                    <div className="beam beam-cta-1" />
+                    <div className="beam beam-cta-2" />
+                </div>
                 <div className="cta-content container">
                     <h2>
-                        Ready to <span className="gradient-text">Visualize</span>?
+                        Ready to <span className="gradient-text">Build Smarter</span>?
                     </h2>
                     <p>
-                        Join the future of Portuguese construction development. Start for free,
-                        upgrade when you grow.
+                        Join architects, engineers, and developers who visualize construction
+                        before breaking ground.
                     </p>
-                    <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <Link href="/map" className="btn btn-primary btn-lg">
+                    <div className="cta-buttons">
+                        <Link href="/map" className="btn btn-primary btn-lg hero-btn-glow">
                             <Map size={18} />
-                            Explore the 3D Map
+                            Explore 3D Map
                             <ArrowRight size={16} />
                         </Link>
-                        <Link href="/dashboard" className="btn btn-secondary btn-lg">
-                            Open Dashboard
+                        <Link href="/auth" className="btn btn-glass btn-lg">
+                            Create Free Account
                         </Link>
                     </div>
                 </div>
@@ -483,45 +560,38 @@ export default function LandingPage() {
             {/* ---- Footer ---- */}
             <footer className="footer">
                 <div className="container">
-                    <div className="footer-grid">
+                    <div className="footer-inner">
                         <div className="footer-brand">
-                            <div className="nav-logo" style={{ marginBottom: 'var(--space-2)' }}>
+                            <div className="nav-logo" style={{ marginBottom: 'var(--space-3)' }}>
                                 <div className="nav-logo-icon">
-                                    <Building2 size={20} />
+                                    <Building2 size={16} />
                                 </div>
                                 ConstruViz
                             </div>
                             <p>
-                                AI-native construction development visualization platform.
-                                Built for Portugal. Powered by Digiton Dynamics.
+                                AI-native construction visualization for Portugal.
+                                Powered by Digiton Dynamics.
                             </p>
                         </div>
-                        <div className="footer-col">
-                            <h4>Product</h4>
-                            <a href="#features">Features</a>
-                            <a href="#pricing">Pricing</a>
-                            <a href="#comparison">Compare</a>
-                            <Link href="/map">3D Map</Link>
-                            <Link href="/dashboard">Dashboard</Link>
-                        </div>
-                        <div className="footer-col">
-                            <h4>Resources</h4>
-                            <a href="#">Documentation</a>
-                            <a href="#">API Reference</a>
-                            <a href="#">Tutorials</a>
-                            <a href="#">Blog</a>
-                        </div>
-                        <div className="footer-col">
-                            <h4>Company</h4>
-                            <a href="#">About Digiton</a>
-                            <a href="#">Careers</a>
-                            <a href="mailto:brandon@digiton.ai">Contact</a>
-                            <a href="#">Privacy Policy</a>
+                        <div className="footer-links">
+                            <div className="footer-col">
+                                <h4>Product</h4>
+                                <a href="#capabilities">Capabilities</a>
+                                <a href="#pricing">Pricing</a>
+                                <Link href="/map">3D Map</Link>
+                                <Link href="/dashboard">Dashboard</Link>
+                            </div>
+                            <div className="footer-col">
+                                <h4>Company</h4>
+                                <a href="mailto:brandon@digiton.ai">Contact</a>
+                                <a href="#">Privacy</a>
+                                <a href="#">Terms</a>
+                            </div>
                         </div>
                     </div>
                     <div className="footer-bottom">
-                        <span>© {new Date().getFullYear()} Digiton Dynamics OÜ. All rights reserved.</span>
-                        <span>Built with ☕ in Lisbon & Tallinn</span>
+                        <span>&copy; {new Date().getFullYear()} Digiton Dynamics. All rights reserved.</span>
+                        <span>Built in Lisbon & Tallinn</span>
                     </div>
                 </div>
             </footer>

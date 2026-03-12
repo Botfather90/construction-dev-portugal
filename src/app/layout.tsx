@@ -3,9 +3,9 @@ import '@/styles/globals.css';
 import '@/styles/components.css';
 
 export const metadata: Metadata = {
-    title: 'ConstruViz — AI-Native Construction Visualization for Portugal',
+    title: 'ConstruViz \u2014 AI Construction Visualization for Portugal',
     description:
-        'Upload floor plans, visualize projects in real 3D alongside surrounding buildings, and leverage AI for automated analysis. Built for Portuguese construction developers, architects, and engineers.',
+        'Upload floor plans, visualize projects in real 3D alongside surrounding buildings, and leverage AI for automated feasibility analysis. Built for Portuguese construction developers, architects, and engineers.',
     keywords: [
         'BIM Portugal',
         'construction visualization',
@@ -15,11 +15,13 @@ export const metadata: Metadata = {
         'construction development',
         'Portugal construction',
         'AI construction',
+        'permit feasibility',
+        'architectural visualization',
     ],
     openGraph: {
-        title: 'ConstruViz — AI-Native Construction Visualization',
+        title: 'ConstruViz \u2014 AI Construction Visualization',
         description:
-            'See your new development in real 3D city context. Upload plans, analyze with AI, collaborate with stakeholders.',
+            'See your new development in real 3D city context. Upload plans, analyze with AI, get permit feasibility instantly.',
         type: 'website',
         locale: 'pt_PT',
     },
@@ -43,6 +45,7 @@ export default function RootLayout({
                     rel="stylesheet"
                     href="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Widgets/widgets.css"
                 />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
             </head>
             <body>{children}</body>
         </html>

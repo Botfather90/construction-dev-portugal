@@ -1,116 +1,99 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     Building2,
-    Plus,
     Map,
-    Layers,
-    FolderOpen,
-    MapPin,
     BarChart3,
-    TrendingUp,
-    Clock,
-    LayoutDashboard,
+    Layers,
+    Plus,
+    Search,
+    MapPin,
+    Ruler,
     X,
-    Building,
-    Hotel,
-    Factory,
-    Home as HomeIcon,
-    Store,
-    ArrowRight,
+    LogOut,
     ChevronRight,
+    User,
+    Globe,
 } from 'lucide-react';
 import { listProjects, createProject, seedDemoProjects } from '@/lib/projects';
-import type { Project } from '@/types';
+import { isAuthenticated, getUser, logout } from '@/lib/auth';
+import { Project } from '@/types';
 import '@/styles/dashboard.css';
 
-const PROJECT_TYPE_ICONS: Record<string, any> = {
-    residential: <HomeIcon size={14} />,
-    commercial: <Store size={14} />,
-    mixed: <Building size={14} />,
-    industrial: <Factory size={14} />,
-    tourism: <Hotel size={14} />,
+const PROJECT_TYPE_ICONS: Record<string, React.ReactNode> = {
+    residential: <Building2 size={14} />,
+    commercial: <BarChart3 size={14} />,
+    mixed: <Layers size={14} />,
+    industrial: <Globe size={14} />,
+    tourism: <Map size={14} />,
 };
 
-const PROJECT_TYPE_LABELS: Record<string, string> = {
-    residential: 'Residential',
-    commercial: 'Commercial',
-    mixed: 'Mixed Use',
-    industrial: 'Industrial',
-    tourism: 'Tourism',
-};
-
-const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-    planning: { label: 'Planning', className: 'badge-violet' },
-    design: { label: 'Design', className: 'badge-cyan' },
-    permitting: { label: 'Permitting', className: 'badge-amber' },
-    construction: { label: 'Construction', className: 'badge-emerald' },
-    completed: { label: 'Completed', className: 'badge-emerald' },
+const STATUS_LABELS: Record<string, string> = {
+    planning: 'Planning',
+    design: 'Design',
+    permitting: 'Permitting',
+    construction: 'Construction',
+    completed: 'Completed',
 };
 
 export default function DashboardPage() {
     const router = useRouter();
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [showCreateModal, setShowCreateModal] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [showCreate, setShowCreate] = useState(false);
+    const [searchFilter, setSearchFilter] = useState('');
 
-    // Form state
-    const [formName, setFormName] = useState('');
-    const [formAddress, setFormAddress] = useState('');
-    const [formDescription, setFormDescription] = useState('');
-    const [formType, setFormType] = useState<Project['projectType']>('residential');
-    const [formLat, setFormLat] = useState('38.7223');
-    const [formLng, setFormLng] = useState('-9.1393');
-    const [formArea, setFormArea] = useState('');
-    const [formFloors, setFormFloors] = useState('');
-    const [formUnits, setFormUnits] = useState('');
+    // New project form
+    const [newProject, setNewProject] = useState({
+        name: '', address: '', description: '', projectType: 'residential' as Project['projectType'],
+        totalArea: '', floors: '', units: '',
+    });
 
     useEffect(() => {
         setMounted(true);
-        seedDemoProjects();
-        setProjects(listProjects());
-    }, []);
+        if (!isAuthenticated()) {
+            router.push('/auth');
+            return;
+        }
+        let p = listProjects();
+        if (p.length === 0) { seedDemoProjects(); p = listProjects(); }
+        setProjects(p);
+    }, [router]);
 
-    const handleCreateProject = () => {
-        if (!formName.trim()) return;
-
-        createProject({
-            name: formName.trim(),
-            description: formDescription.trim(),
-            address: formAddress.trim(),
-            latitude: parseFloat(formLat) || 38.7223,
-            longitude: parseFloat(formLng) || -9.1393,
-            projectType: formType,
+    const handleCreate = useCallback(() => {
+        if (!newProject.name || !newProject.address) return;
+        const p = createProject({
+            name: newProject.name,
+            address: newProject.address,
+            description: newProject.description,
+            projectType: newProject.projectType,
             status: 'planning',
-            totalArea: formArea ? parseInt(formArea) : undefined,
-            floors: formFloors ? parseInt(formFloors) : undefined,
-            units: formUnits ? parseInt(formUnits) : undefined,
+            latitude: 38.7169,
+            longitude: -9.1399,
+            totalArea: newProject.totalArea ? parseInt(newProject.totalArea) : undefined,
+            floors: newProject.floors ? parseInt(newProject.floors) : undefined,
+            units: newProject.units ? parseInt(newProject.units) : undefined,
         });
+        setProjects((prev) => [p, ...prev]);
+        setShowCreate(false);
+        setNewProject({ name: '', address: '', description: '', projectType: 'residential', totalArea: '', floors: '', units: '' });
+    }, [newProject]);
 
-        setProjects(listProjects());
-        setShowCreateModal(false);
-        resetForm();
-    };
+    const handleLogout = () => { logout(); router.push('/auth'); };
 
-    const resetForm = () => {
-        setFormName('');
-        setFormAddress('');
-        setFormDescription('');
-        setFormType('residential');
-        setFormLat('38.7223');
-        setFormLng('-9.1393');
-        setFormArea('');
-        setFormFloors('');
-        setFormUnits('');
-    };
+    if (!mounted) return null;
+
+    const user = getUser();
+    const filtered = searchFilter
+        ? projects.filter((p) => p.name.toLowerCase().includes(searchFilter.toLowerCase()) || p.address.toLowerCase().includes(searchFilter.toLowerCase()))
+        : projects;
 
     const totalArea = projects.reduce((sum, p) => sum + (p.totalArea || 0), 0);
     const totalUnits = projects.reduce((sum, p) => sum + (p.units || 0), 0);
-
-    if (!mounted) return null;
+    const activeProjects = projects.filter((p) => p.status !== 'completed').length;
 
     return (
         <div className="dashboard-layout">
@@ -118,54 +101,34 @@ export default function DashboardPage() {
             <div className="dashboard-topbar">
                 <div className="dashboard-topbar-inner">
                     <Link href="/" className="dashboard-logo">
-                        <span
-                            style={{
-                                width: 28,
-                                height: 28,
-                                background: 'var(--gradient-primary)',
-                                borderRadius: 'var(--radius-sm)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <Building2 size={16} color="white" />
-                        </span>
+                        <div className="nav-logo-icon" style={{ width: 28, height: 28 }}>
+                            <Building2 size={14} />
+                        </div>
                         ConstruViz
                     </Link>
-
-                    <div className="dashboard-topbar-nav hide-mobile">
-                        <Link href="/dashboard" className="dashboard-topbar-link active">
-                            <LayoutDashboard size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                            Dashboard
-                        </Link>
-                        <Link href="/map" className="dashboard-topbar-link">
-                            <Map size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                            3D Map
-                        </Link>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-                        <Link href="/map" className="btn btn-sm btn-primary">
-                            <Map size={14} />
-                            Open Map
-                        </Link>
+                    <div className="dashboard-topbar-nav">
+                        <Link href="/map" className="dashboard-topbar-link">3D Map</Link>
+                        <Link href="/dashboard" className="dashboard-topbar-link active">Projects</Link>
+                        <button
+                            onClick={handleLogout}
+                            className="dashboard-topbar-link"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            <User size={14} />
+                            {user?.name || 'User'}
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Content */}
             <div className="dashboard-content">
                 {/* Header */}
                 <div className="dashboard-header">
                     <div>
-                        <h1>My Projects</h1>
-                        <p>Manage your construction development projects across Portugal</p>
+                        <h1>Projects</h1>
+                        <p>Manage your construction development portfolio</p>
                     </div>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => setShowCreateModal(true)}
-                    >
+                    <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
                         <Plus size={16} />
                         New Project
                     </button>
@@ -173,233 +136,154 @@ export default function DashboardPage() {
 
                 {/* Stats */}
                 <div className="stats-row">
-                    <div className="stat-card">
+                    <div className="stat-card glass">
                         <div className="stat-card-label">Total Projects</div>
                         <div className="stat-card-value gradient-text">{projects.length}</div>
                     </div>
-                    <div className="stat-card">
-                        <div className="stat-card-label">Total Area</div>
-                        <div className="stat-card-value">{totalArea.toLocaleString()} m²</div>
+                    <div className="stat-card glass">
+                        <div className="stat-card-label">Active</div>
+                        <div className="stat-card-value gradient-text">{activeProjects}</div>
                     </div>
-                    <div className="stat-card">
+                    <div className="stat-card glass">
+                        <div className="stat-card-label">Total Area</div>
+                        <div className="stat-card-value">{totalArea.toLocaleString()} m{'\u00B2'}</div>
+                    </div>
+                    <div className="stat-card glass">
                         <div className="stat-card-label">Total Units</div>
                         <div className="stat-card-value">{totalUnits}</div>
                     </div>
-                    <div className="stat-card">
-                        <div className="stat-card-label">Active Phase</div>
-                        <div className="stat-card-value" style={{ color: 'var(--color-accent-emerald)' }}>
-                            {projects.filter((p) => p.status === 'construction').length} In Construction
+                </div>
+
+                {/* Search + Project Grid */}
+                <div className="projects-section-header">
+                    <h2>All Projects</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--color-text-muted)' }} />
+                            <input
+                                className="input"
+                                placeholder="Search projects..."
+                                value={searchFilter}
+                                onChange={(e) => setSearchFilter(e.target.value)}
+                                style={{ paddingLeft: 36, width: 240, height: 36 }}
+                            />
                         </div>
                     </div>
                 </div>
 
-                {/* Projects */}
-                <div className="projects-section-header">
-                    <h2>All Projects</h2>
-                </div>
-
-                {projects.length === 0 ? (
-                    <div className="empty-state">
-                        <FolderOpen size={64} />
-                        <h3>No Projects Yet</h3>
-                        <p>Create your first construction development project to get started.</p>
-                        <button
-                            className="btn btn-primary"
-                            style={{ marginTop: 'var(--space-4)' }}
-                            onClick={() => setShowCreateModal(true)}
-                        >
-                            <Plus size={16} />
-                            Create Project
-                        </button>
-                    </div>
-                ) : (
+                {filtered.length > 0 ? (
                     <div className="projects-grid">
-                        {projects.map((project) => (
-                            <div
-                                key={project.id}
-                                className="project-card"
-                                onClick={() => router.push(`/dashboard/${project.id}`)}
-                            >
-                                <div className="project-card-map">
-                                    <div className="project-card-map-placeholder">
-                                        <Map size={48} />
+                        {filtered.map((project) => (
+                            <Link href={`/dashboard/${project.id}`} key={project.id} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                <div className="project-card">
+                                    <div className="project-card-map">
+                                        <div className="project-card-map-placeholder">
+                                            <Building2 size={48} />
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="project-card-body">
-                                    <div className="project-card-type">
-                                        <span className={`badge ${STATUS_BADGES[project.status]?.className || 'badge-cyan'}`}>
-                                            {STATUS_BADGES[project.status]?.label || project.status}
-                                        </span>
-                                    </div>
-                                    <div className="project-card-title">{project.name}</div>
-                                    <div className="project-card-address">
-                                        <MapPin size={14} />
-                                        {project.address || 'No address set'}
-                                    </div>
-                                    <div className="project-card-stats">
-                                        {project.totalArea && (
-                                            <div className="project-card-stat">
-                                                <div className="project-card-stat-value">
-                                                    {project.totalArea.toLocaleString()} m²
+                                    <div className="project-card-body">
+                                        <div className="project-card-type">
+                                            <span className="badge badge-cyan">
+                                                {PROJECT_TYPE_ICONS[project.projectType]}
+                                                {project.projectType.charAt(0).toUpperCase() + project.projectType.slice(1)}
+                                            </span>
+                                        </div>
+                                        <div className="project-card-title">{project.name}</div>
+                                        <div className="project-card-address">
+                                            <MapPin size={13} />
+                                            {project.address}
+                                        </div>
+                                        <div className="project-card-stats">
+                                            {project.totalArea && (
+                                                <div className="project-card-stat">
+                                                    <div className="project-card-stat-value">{project.totalArea.toLocaleString()} m{'\u00B2'}</div>
+                                                    <div className="project-card-stat-label">Area</div>
                                                 </div>
-                                                <div className="project-card-stat-label">Area</div>
-                                            </div>
-                                        )}
-                                        {project.floors && (
-                                            <div className="project-card-stat">
-                                                <div className="project-card-stat-value">{project.floors}</div>
-                                                <div className="project-card-stat-label">Floors</div>
-                                            </div>
-                                        )}
-                                        {project.units && (
-                                            <div className="project-card-stat">
-                                                <div className="project-card-stat-value">{project.units}</div>
-                                                <div className="project-card-stat-label">Units</div>
-                                            </div>
-                                        )}
-                                        <div className="project-card-stat" style={{ marginLeft: 'auto' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-accent-cyan)', fontSize: 'var(--text-xs)', fontWeight: 600 }}>
-                                                View <ChevronRight size={12} />
+                                            )}
+                                            {project.floors && (
+                                                <div className="project-card-stat">
+                                                    <div className="project-card-stat-value">{project.floors}</div>
+                                                    <div className="project-card-stat-label">Floors</div>
+                                                </div>
+                                            )}
+                                            {project.units && (
+                                                <div className="project-card-stat">
+                                                    <div className="project-card-stat-value">{project.units}</div>
+                                                    <div className="project-card-stat-label">Units</div>
+                                                </div>
+                                            )}
+                                            <div className="project-card-stat" style={{ marginLeft: 'auto' }}>
+                                                <div className="project-card-stat-value" style={{ color: 'var(--color-accent-cyan)' }}>
+                                                    {STATUS_LABELS[project.status]}
+                                                </div>
+                                                <div className="project-card-stat-label">Status</div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         ))}
+                    </div>
+                ) : (
+                    <div className="empty-state">
+                        <Building2 size={48} />
+                        <h3>No projects yet</h3>
+                        <p>Create your first construction project to get started.</p>
+                        <button className="btn btn-primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => setShowCreate(true)}>
+                            <Plus size={16} /> New Project
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Create Project Modal */}
-            {showCreateModal && (
-                <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 580 }}>
+            {/* Create Modal */}
+            {showCreate && (
+                <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Create New Project</h2>
-                            <button className="btn btn-icon btn-ghost" onClick={() => setShowCreateModal(false)}>
-                                <X size={18} />
-                            </button>
+                            <h2>New Project</h2>
+                            <button className="btn btn-icon btn-ghost" onClick={() => setShowCreate(false)}><X size={18} /></button>
                         </div>
                         <div className="modal-body">
                             <div className="create-project-form">
                                 <div className="input-group">
-                                    <label className="input-label">
-                                        Project Name <span className="required">*</span>
-                                    </label>
-                                    <input
-                                        className="input"
-                                        placeholder="e.g. Residências da Estrela"
-                                        value={formName}
-                                        onChange={(e) => setFormName(e.target.value)}
-                                    />
+                                    <label className="input-label">Project Name <span className="required">*</span></label>
+                                    <input className="input" placeholder="e.g. Riverside Towers" value={newProject.name} onChange={(e) => setNewProject({ ...newProject, name: e.target.value })} />
                                 </div>
-
                                 <div className="input-group">
-                                    <label className="input-label">Address</label>
-                                    <input
-                                        className="input"
-                                        placeholder="e.g. Rua da Estrela 42, Lisboa"
-                                        value={formAddress}
-                                        onChange={(e) => setFormAddress(e.target.value)}
-                                    />
+                                    <label className="input-label">Address <span className="required">*</span></label>
+                                    <input className="input" placeholder="e.g. Rua Augusta, Lisboa" value={newProject.address} onChange={(e) => setNewProject({ ...newProject, address: e.target.value })} />
                                 </div>
-
-                                <div className="input-group">
-                                    <label className="input-label">Description</label>
-                                    <textarea
-                                        className="input textarea"
-                                        placeholder="Describe the project..."
-                                        value={formDescription}
-                                        onChange={(e) => setFormDescription(e.target.value)}
-                                    />
-                                </div>
-
                                 <div className="input-group">
                                     <label className="input-label">Project Type</label>
-                                    <select
-                                        className="input select"
-                                        value={formType}
-                                        onChange={(e) => setFormType(e.target.value as Project['projectType'])}
-                                    >
-                                        <option value="residential">🏠 Residential</option>
-                                        <option value="commercial">🏢 Commercial</option>
-                                        <option value="mixed">🏗️ Mixed Use</option>
-                                        <option value="industrial">🏭 Industrial</option>
-                                        <option value="tourism">🏨 Tourism</option>
+                                    <select className="input select" value={newProject.projectType} onChange={(e) => setNewProject({ ...newProject, projectType: e.target.value as Project['projectType'] })}>
+                                        <option value="residential">Residential</option>
+                                        <option value="commercial">Commercial</option>
+                                        <option value="mixed">Mixed Use</option>
+                                        <option value="industrial">Industrial</option>
+                                        <option value="tourism">Tourism</option>
                                     </select>
                                 </div>
-
                                 <div className="form-row">
                                     <div className="input-group">
-                                        <label className="input-label">Latitude</label>
-                                        <input
-                                            className="input"
-                                            type="number"
-                                            step="0.0001"
-                                            placeholder="38.7223"
-                                            value={formLat}
-                                            onChange={(e) => setFormLat(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="input-group">
-                                        <label className="input-label">Longitude</label>
-                                        <input
-                                            className="input"
-                                            type="number"
-                                            step="0.0001"
-                                            placeholder="-9.1393"
-                                            value={formLng}
-                                            onChange={(e) => setFormLng(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="form-row">
-                                    <div className="input-group">
-                                        <label className="input-label">Total Area (m²)</label>
-                                        <input
-                                            className="input"
-                                            type="number"
-                                            placeholder="e.g. 5000"
-                                            value={formArea}
-                                            onChange={(e) => setFormArea(e.target.value)}
-                                        />
+                                        <label className="input-label">Area (m{'\u00B2'})</label>
+                                        <input className="input" type="number" placeholder="e.g. 5000" value={newProject.totalArea} onChange={(e) => setNewProject({ ...newProject, totalArea: e.target.value })} />
                                     </div>
                                     <div className="input-group">
                                         <label className="input-label">Floors</label>
-                                        <input
-                                            className="input"
-                                            type="number"
-                                            placeholder="e.g. 6"
-                                            value={formFloors}
-                                            onChange={(e) => setFormFloors(e.target.value)}
-                                        />
+                                        <input className="input" type="number" placeholder="e.g. 8" value={newProject.floors} onChange={(e) => setNewProject({ ...newProject, floors: e.target.value })} />
                                     </div>
                                 </div>
-
                                 <div className="input-group">
                                     <label className="input-label">Units</label>
-                                    <input
-                                        className="input"
-                                        type="number"
-                                        placeholder="e.g. 24"
-                                        value={formUnits}
-                                        onChange={(e) => setFormUnits(e.target.value)}
-                                    />
+                                    <input className="input" type="number" placeholder="e.g. 24" value={newProject.units} onChange={(e) => setNewProject({ ...newProject, units: e.target.value })} />
                                 </div>
                             </div>
                         </div>
                         <div className="modal-footer">
-                            <button className="btn btn-ghost" onClick={() => setShowCreateModal(false)}>
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-primary"
-                                disabled={!formName.trim()}
-                                onClick={handleCreateProject}
-                            >
-                                <Plus size={16} />
-                                Create Project
+                            <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
+                            <button className="btn btn-primary" onClick={handleCreate} disabled={!newProject.name || !newProject.address}>
+                                <Plus size={14} /> Create Project
                             </button>
                         </div>
                     </div>
