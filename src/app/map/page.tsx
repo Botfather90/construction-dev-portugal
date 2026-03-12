@@ -34,6 +34,7 @@ import axios from 'axios';
 import { PORTUGUESE_CITIES, DEFAULT_LAYERS, CESIUM_ASSETS, formatCoords, LISBON_VIEW } from '@/lib/cesium';
 import { MapLayer } from '@/types';
 import { ConstraintCheckRequest, ConstraintCheckResult } from '@/lib/legislation/types';
+import { isMobileDevice, getMobileViewerOptions, configureMobileScene, handleCesiumLoadError } from '@/lib/mobile-cesium-fix';
 import '@/styles/map.css';
 
 let Cesium: any = null;
@@ -157,10 +158,16 @@ export default function MapPage() {
                 const CesiumModule = await import('cesium');
                 Cesium = CesiumModule;
                 (window as any).CESIUM_BASE_URL = '/cesium';
-                Cesium.Ion.defaultAccessToken = (process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || '').trim();
+                
+                const token = (process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || '').trim();
+                if (!token) {
+                    throw new Error('Cesium Ion token is not configured');
+                }
+                Cesium.Ion.defaultAccessToken = token;
 
                 if (!mounted || !containerRef.current) return;
 
+                const mobileOptions = getMobileViewerOptions(Cesium);
                 const viewer = new Cesium.Viewer(containerRef.current, {
                     terrain: Cesium.Terrain.fromWorldTerrain(),
                     baseLayerPicker: false,
@@ -174,32 +181,37 @@ export default function MapPage() {
                     fullscreenButton: false,
                     infoBox: false,
                     creditContainer: document.createElement('div'),
-                    msaaSamples: 4,
-                    skyAtmosphere: false,
-                    skyBox: false,
-                    contextOptions: { webgl: { alpha: true, antialias: true } }
+                    skyAtmosphere: !isMobileDevice(),
+                    skyBox: !isMobileDevice(),
+                    ...mobileOptions
                 });
 
                 viewerRef.current = viewer;
 
-                viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#060a14');
-                viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0c1222');
-                viewer.scene.globe.showWaterEffect = true;
-                viewer.scene.highDynamicRange = true;
-                viewer.scene.globe.enableLighting = true;
-                viewer.scene.globe.depthTestAgainstTerrain = true;
+                // Apply mobile-specific configurations
+                configureMobileScene(viewer, Cesium);
 
-                viewer.scene.fog.enabled = true;
-                viewer.scene.fog.density = 0.0003;
-                viewer.scene.fog.screenSpaceErrorFactor = 2.0;
+                // Only apply high-quality settings on desktop
+                if (!isMobileDevice()) {
+                    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#060a14');
+                    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0c1222');
+                    viewer.scene.globe.showWaterEffect = true;
+                    viewer.scene.highDynamicRange = true;
+                    viewer.scene.globe.enableLighting = true;
+                    viewer.scene.globe.depthTestAgainstTerrain = true;
 
-                if (Cesium.PostProcessStageLibrary.isAmbientOcclusionSupported(viewer.scene)) {
-                    const ao = viewer.scene.postProcessStages.ambientOcclusion;
-                    ao.enabled = true;
-                    ao.uniforms.intensity = 3.0;
-                    ao.uniforms.lengthCap = 0.25;
-                    ao.uniforms.stepSize = 1.5;
-                    ao.uniforms.bias = 0.05;
+                    viewer.scene.fog.enabled = true;
+                    viewer.scene.fog.density = 0.0003;
+                    viewer.scene.fog.screenSpaceErrorFactor = 2.0;
+
+                    if (Cesium.PostProcessStageLibrary.isAmbientOcclusionSupported(viewer.scene)) {
+                        const ao = viewer.scene.postProcessStages.ambientOcclusion;
+                        ao.enabled = true;
+                        ao.uniforms.intensity = 3.0;
+                        ao.uniforms.lengthCap = 0.25;
+                        ao.uniforms.stepSize = 1.5;
+                        ao.uniforms.bias = 0.05;
+                    }
                 }
 
                 try {
@@ -300,6 +312,7 @@ export default function MapPage() {
             } catch (err: any) {
                 console.error('Cesium init error:', err);
                 if (mounted) {
+                    setError(handleCesiumLoadError(err));
                     setError(err.message || 'Failed to initialize 3D viewer');
                     setLoading(false);
                 }
@@ -515,12 +528,41 @@ export default function MapPage() {
         finally { setAiLoading(false); }
     };
 
-    if (!mounted) {
+    if (!mounted || loading) {
         return (
             <div className="map-page" id="map-page" style={{ background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', padding: '20px' }}>
                     <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }} />
-                    <p>Initializing ConstruViz...</p>
+                    <p style={{ fontSize: '16px', marginBottom: '8px' }}>Initializing ConstruViz...</p>
+                    <p style={{ fontSize: '13px', color: '#64748b' }}>
+                        {typeof window !== 'undefined' && isMobileDevice() ? 'Optimizing for mobile...' : 'Loading 3D map viewer...'}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="map-page" id="map-page" style={{ background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
+                <div style={{ textAlign: 'center', padding: '32px', maxWidth: '500px' }}>
+                    <AlertCircle size={48} style={{ color: '#ef4444', margin: '0 auto 16px' }} />
+                    <h2 style={{ color: 'white', fontSize: '20px', marginBottom: '12px' }}>Map Load Error</h2>
+                    <p style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>{error}</p>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button 
+                            onClick={() => window.location.reload()} 
+                            style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                        >
+                            Retry
+                        </button>
+                        <Link 
+                            href="/dashboard" 
+                            style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, textDecoration: 'none', display: 'inline-block' }}
+                        >
+                            Go to Dashboard
+                        </Link>
+                    </div>
                 </div>
             </div>
         );
