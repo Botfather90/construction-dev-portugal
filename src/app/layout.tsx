@@ -43,7 +43,7 @@ export default function RootLayout({
                 />
                 <link
                     rel="stylesheet"
-                    href="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Widgets/widgets.css"
+                    href="https://cesium.com/downloads/cesiumjs/releases/1.139.1/Build/Cesium/Widgets/widgets.css"
                 />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
             </head>

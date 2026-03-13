@@ -157,7 +157,7 @@ export default function MapPage() {
             try {
                 // CRITICAL: Set CESIUM_BASE_URL BEFORE importing Cesium
                 // Cesium reads this during module initialization for workers/assets
-                const cesiumBaseUrl = process.env.NEXT_PUBLIC_CESIUM_BASE_URL || 'https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium';
+                const cesiumBaseUrl = process.env.NEXT_PUBLIC_CESIUM_BASE_URL || 'https://cesium.com/downloads/cesiumjs/releases/1.139.1/Build/Cesium';
                 (window as any).CESIUM_BASE_URL = cesiumBaseUrl;
 
                 const CesiumModule = await import('cesium');
@@ -185,8 +185,8 @@ export default function MapPage() {
                     fullscreenButton: false,
                     infoBox: false,
                     creditContainer: document.createElement('div'),
-                    skyAtmosphere: !isMobileDevice(),
-                    skyBox: !isMobileDevice(),
+                    skyAtmosphere: false,
+                    skyBox: false,
                     ...mobileOptions
                 });
 
