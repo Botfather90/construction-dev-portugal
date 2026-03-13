@@ -155,13 +155,17 @@ export default function MapPage() {
 
         async function initCesium() {
             try {
+                // CRITICAL: Set CESIUM_BASE_URL BEFORE importing Cesium
+                // Cesium reads this during module initialization for workers/assets
+                const cesiumBaseUrl = process.env.NEXT_PUBLIC_CESIUM_BASE_URL || 'https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium';
+                (window as any).CESIUM_BASE_URL = cesiumBaseUrl;
+
                 const CesiumModule = await import('cesium');
                 Cesium = CesiumModule;
-                (window as any).CESIUM_BASE_URL = '/cesium';
                 
                 const token = (process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || '').trim();
                 if (!token) {
-                    throw new Error('Cesium Ion token is not configured');
+                    throw new Error('Cesium Ion token is not configured. Please set NEXT_PUBLIC_CESIUM_ION_TOKEN in your environment variables.');
                 }
                 Cesium.Ion.defaultAccessToken = token;
 
@@ -528,41 +532,12 @@ export default function MapPage() {
         finally { setAiLoading(false); }
     };
 
-    if (!mounted || loading) {
+    if (!mounted) {
         return (
             <div className="map-page" id="map-page" style={{ background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
                 <div style={{ textAlign: 'center', padding: '20px' }}>
                     <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }} />
                     <p style={{ fontSize: '16px', marginBottom: '8px' }}>Initializing ConstruViz...</p>
-                    <p style={{ fontSize: '13px', color: '#64748b' }}>
-                        {typeof window !== 'undefined' && isMobileDevice() ? 'Optimizing for mobile...' : 'Loading 3D map viewer...'}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="map-page" id="map-page" style={{ background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
-                <div style={{ textAlign: 'center', padding: '32px', maxWidth: '500px' }}>
-                    <AlertCircle size={48} style={{ color: '#ef4444', margin: '0 auto 16px' }} />
-                    <h2 style={{ color: 'white', fontSize: '20px', marginBottom: '12px' }}>Map Load Error</h2>
-                    <p style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>{error}</p>
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <button 
-                            onClick={() => window.location.reload()} 
-                            style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
-                        >
-                            Retry
-                        </button>
-                        <Link 
-                            href="/dashboard" 
-                            style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, textDecoration: 'none', display: 'inline-block' }}
-                        >
-                            Go to Dashboard
-                        </Link>
-                    </div>
                 </div>
             </div>
         );
@@ -575,16 +550,42 @@ export default function MapPage() {
 
             {/* Loading overlay */}
             {loading && (
-                <div className="map-loading">
-                    <div className="spinner" style={{ width: 40, height: 40 }} />
-                    <div className="map-loading-text">{error ? error : 'Loading 3D Map Engine...'}</div>
-                    {error && (
-                        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', maxWidth: 400, textAlign: 'center', marginTop: 'var(--space-2)' }}>
-                            Make sure you have a valid Cesium ion token in your .env.local file.
+                <div style={{ position: 'absolute', inset: 0, background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: '#94a3b8' }}>
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                        <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }} />
+                        <p style={{ fontSize: '16px', marginBottom: '8px' }}>Initializing ConstruViz...</p>
+                        <p style={{ fontSize: '13px', color: '#64748b' }}>
+                            {typeof window !== 'undefined' && isMobileDevice() ? 'Optimizing for mobile...' : 'Loading 3D map viewer...'}
                         </p>
-                    )}
+                    </div>
                 </div>
             )}
+
+            {/* Error overlay */}
+            {error && (
+                <div style={{ position: 'absolute', inset: 0, background: '#060a14', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: '#94a3b8' }}>
+                    <div style={{ textAlign: 'center', padding: '32px', maxWidth: '500px' }}>
+                        <AlertCircle size={48} style={{ color: '#ef4444', margin: '0 auto 16px' }} />
+                        <h2 style={{ color: 'white', fontSize: '20px', marginBottom: '12px' }}>Map Load Error</h2>
+                        <p style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>{error}</p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                            >
+                                Retry
+                            </button>
+                            <Link 
+                                href="/dashboard" 
+                                style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, textDecoration: 'none', display: 'inline-block' }}
+                            >
+                                Go to Dashboard
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Placement Mode Overlays */}
             {(isPlacing || buildPlacing) && (
